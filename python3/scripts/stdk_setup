@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+import os
+import sys
+
+# Add the current stdk path to the beginning of the path
+#  so we can run it from anywhere
+stdk_dir = os.path.abspath(os.path.join(__file__, '../../'))
+sys.path.insert(0, stdk_dir)
+
+# Import and run
+from stdk.tools import stdk_setup
+sys.exit(stdk_setup.main())
