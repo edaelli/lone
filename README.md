@@ -18,7 +18,7 @@ STDK aims to be the basis for writing both extremely simple and extremely comple
 
 - Clone the STDK repo, cd into it, and install python3 requirements for stdk_setup
     ```
-    pip3 install -r requirements.txt
+    pip3 install -r python3/requirements.txt
     ```
 
 - Check system requirements
