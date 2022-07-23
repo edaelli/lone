@@ -4,7 +4,7 @@
 
 ## Introduction
 
-The Storage Test Development Kit (STDK) is a set of tools and libraries primarily written in Python (with C extensions) which grants a user full control of a storage device. It uses similar concepts as [SPDK](www.spdk.io), but where SPDK focuses on performance, STDK focuses on testability and control.
+The Storage Test Development Kit (STDK) is a set of tools and libraries primarily written in Python (with C extensions) which grants a user full control of a storage device. It uses similar concepts as [SPDK](https://www.spdk.io), but where SPDK focuses on performance, STDK focuses on testability and control.
 
 The software takes advantage of modern IO Virtualization Hardware such as Intel VT-d and AMD VI to allow full control of a storage device in userspace using Python.
 
@@ -18,7 +18,7 @@ STDK aims to be the basis for writing both extremely simple and extremely comple
 
 - Clone the STDK repo, cd into it, and install python3 requirements for stdk_setup
     ```
-    pip3 install -r requirements.txt
+    pip3 install -r python3/requirements.txt
     ```
 
 - Check system requirements
