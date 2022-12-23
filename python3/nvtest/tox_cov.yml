@@ -1,0 +1,15 @@
+# This config file is used by tox to test lone and
+#   check coverage on the tests/library. The test_list
+#   section is purposefully left blank so all discovered
+#   tests are run
+dut:
+  pci_slot: nvsim
+  namespaces:
+    - namespace_1:
+      nsid: 1
+      block_size: 4096
+      num_blocks: 0x1000
+
+
+test_list:
+  # Empty so all tests are run

@@ -1,56 +1,71 @@
 ################################################################################
-# Dockerfile for stdk
+# Dockerfile for lone
 ################################################################################
 FROM ubuntu:22.04
 MAINTAINER Edoardo Daelli <edoardo.daelli@gmail.com>
 
 ################################################################################
-# Add the stdk_user user/group to the image
+# Add a non-root user named "lone_user" to the image
 ################################################################################
-ARG HOME_PATH=''
-RUN groupadd -g 1000 -o stdk_user
-RUN useradd -m -u 1000 -g 1000 -o -s /bin/bash stdk_user
-ENV PATH="/home/stdk_user/.local/bin:${PATH}"
+RUN useradd -m -s /bin/bash lone_user
 
 ################################################################################
-# Create local working directory to mount the host system's fs
+# Proxy configuration if requested
 ################################################################################
-RUN install -d /local_fs/
+ARG http_proxy=""
+ARG https_proxy=""
+
+# Set env proxy variables
+ENV HTTP_PROXY=$http_proxy
+ENV http_proxy=$http_proxy
+ENV HTTPS_PROXY=$https_proxy
+ENV https_proxy=$https_proxy
+ENV NO_PROXY="localhost,127.0.0.1"
+ENV no_proxy="localhost,127.0.0.1"
+
+# Set apt to use the proxy values
+RUN touch /etc/apt/apt.conf.d/proxy.conf
+RUN echo "Acquire::http::Proxy \"$http_proxy\";" >> /etc/apt/apt.conf.d/proxy.conf
+RUN echo "Acquire::https::Proxy \"$https_proxy\";" >> /etc/apt/apt.conf.d/proxy.conf
 
 ################################################################################
-# Install base packages
+# Install packages
 ################################################################################
 RUN apt-get -y update
-RUN apt-get -y install software-properties-common
 RUN apt-get -y install \
-	apt-utils \
-	curl \
+	python3-dev \
+	python3-distutils \
+	python3-apt \
+	python3-venv \
+	python3-pip \
+	python3-yaml \
 	pciutils \
-    build-essential \
+    libhugetlbfs-dev \
     vim
 
 ################################################################################
-# Install python3-10 from deadsnakes/ppa and pip with get-pip.py
+# Copy lone to tmp
 ################################################################################
-RUN add-apt-repository ppa:deadsnakes/ppa
-RUN apt-get install -y \
-	python3.10 \
-	python3.10-dev \
-	python3.10-distutils \
-	python3.10-apt \
-	python3.10-venv
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+ADD python3 /tmp/lone
+RUN chown -R lone_user:lone_user /tmp/lone
 
 ################################################################################
-# Install libhugetlbfs to use hugepages in c extension
+# Switch to the lone user, and set its path
 ################################################################################
-RUN apt-get -y install libhugetlbfs-dev
+USER lone_user
+ENV PATH=$PATH:~/.local/bin
 
 ################################################################################
-# Install stdk
+# If the user set the --build-arg piptrust=1, then set pip3 to trust the default
+#    locations. This is useful if building this container behind a HTTPS proxy
+#    with a custom SSL certificate
 ################################################################################
-ADD python3 /opt/stdk
-RUN chown -R stdk_user:stdk_user /opt/stdk
-USER stdk_user
-RUN pip install /opt/stdk
-RUN cd /opt/stdk && tox --color=yes
+ARG piptrust
+RUN if [ "$piptrust" = "1" ]; then pip3 config set global.trusted-host \
+    "pypi.org files.pythonhosted.org pypi.python.org"; fi
+
+################################################################################
+# Install lone
+################################################################################
+RUN pip3 install /tmp/lone
+RUN rm -rf /tmp/lone

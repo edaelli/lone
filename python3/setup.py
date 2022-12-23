@@ -19,9 +19,9 @@ if sys.platform == 'linux':
                            ],
                            extra_compile_args=[],
                            extra_link_args=[],
-                           sources=['stdk/system/linux/hugepages.c'])
+                           sources=['lone/system/linux/hugepages.c'])
 
-setup(name='stdk',
+setup(name='lone',
       version='0.1',
       description='Python Userspace Storage Device Test Framework',
       url=None,
@@ -31,17 +31,19 @@ setup(name='stdk',
       packages=find_packages(),
       zip_safe=False,
       install_requires=[
-          'tox4',
+          'tox',
           'ioctl_opt',
           'pytest-cov',
           'pytest-mock',
           'pylama',
           'pyudev',
+          'pyyaml',
       ],
       include_package_data=True,
       entry_points={
           'console_scripts': [
-              'stdk_setup = stdk.tools.stdk_setup:main',
+              'lone = scripts.lone:main',
+              'lone_setup = scripts.lone_setup:main',
           ],
       },
       setup_requires=[

@@ -2,27 +2,22 @@ version: "3"
 
 services:
 
-  stdk_env:
+  lone_env:
 
     # Build the dev_env dockerfile
     build:
       context: .
       dockerfile: Dockerfile
 
-    # Add environment variables
+    # Set a known hostname for the container
+    hostname: LONE
+
+    # Run with the lone_user user
+    user: lone_user:lone_user
+
+    # Set some ENV variables
     environment:
-      - VAR=example
-
-    # Run with the stdk_user user
-    user: 1000:1000
-
-    # Mount volumes
-    volumes:
-      # Mount the current system's fs in /local_fs
-      - /:/local_fs/
-
-      # Set the current user's home directory
-      #- /home/$USER:/home/$USER
+      - TERM=xterm-256color
 
     # Expose vfio container device
     devices:
@@ -31,10 +26,6 @@ services:
     # Expose syslog so user can call dmesg
     cap_add:
         - syslog
-
-    # Run everything in a tty
-    #stdin_open: true
-    #tty: true
 
     # Start a command with my_init as the init process to avoid zombies
     command: "/bin/bash"
