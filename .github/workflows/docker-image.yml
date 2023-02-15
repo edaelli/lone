@@ -18,3 +18,5 @@ jobs:
     - uses: actions/checkout@v3
     - name: Build the Docker image
       run: docker compose build lone_env
+    - name: Run tox (install, lint, test)
+      run: docker compose run lone_env /usr/bin/python3 -m tox -c /opt/lone/

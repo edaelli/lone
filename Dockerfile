@@ -44,10 +44,10 @@ RUN apt-get -y install \
     vim
 
 ################################################################################
-# Copy lone to tmp
+# Copy lone to /opt/
 ################################################################################
-ADD python3 /tmp/lone
-RUN chown -R lone_user:lone_user /tmp/lone
+ADD python3 /opt/lone
+RUN chown -R lone_user:lone_user /opt/lone
 
 ################################################################################
 # Switch to the lone user, and set its path
@@ -67,5 +67,4 @@ RUN if [ "$piptrust" = "1" ]; then pip3 config set global.trusted-host \
 ################################################################################
 # Install lone
 ################################################################################
-RUN pip3 install /tmp/lone
-RUN rm -rf /tmp/lone
+RUN pip3 install /opt/lone
