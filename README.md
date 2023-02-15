@@ -17,9 +17,36 @@ lone aims to be the basis for writing both extremely simple and extremely comple
 
 - Install [docker](https://docs.docker.com/engine/install/ubuntu/) and [docker-compose](https://docs.docker.com/compose/install/)
 
+- Optional/Developer : Install virtualenv & Activate
+    ```
+    # For Ubuntu
+    $ sudo apt install python3-venv
+
+    # For other distributions
+    $ python3 -m pip install --user virtualenv
+
+    # Activate venv
+    $ source .venv/bin/activate
+    ```
+
 - Clone the lone repo, cd into it, and install python3 requirements for lone_setup.py
     ```
-    pip3 install -r python3/requirements.txt
+    $ pip3 install -r python3/requirements.txt
+    ```
+
+- Optional/Developer : Build & install the hugepages module (if not installed from pip)
+    ```
+    $ (cd ./python3/ && python3 ./setup.py install)
+    ```
+
+- Configure HugePages (may not be necessary)
+    ```
+    # Temporary
+    $ echo 1024 | sudo tee /proc/sys/vm/nr_hugepages
+
+    # Persistent
+    $ vim /etc/sysctl.conf
+    vm.nr_hugepages = 1024
     ```
 
 - Check system requirements
@@ -48,6 +75,10 @@ lone aims to be the basis for writing both extremely simple and extremely comple
 - Build and enter docker lone environment
     ```
     $ docker compose build lone_env
+
+    # -OR- If proxy required, pass as arguments
+    $ docker compose build lone_env --build-arg https_proxy=http://proxy.mycompany.com:9012 \
+        --build-arg http_proxy=http://proxy.mycompany.com:9011
     ...
 
     $ docker compose run lone_env
