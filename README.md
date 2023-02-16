@@ -1,4 +1,3 @@
-
 # lone - A Stand-aLONE Storage Test Development Kit
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -87,10 +86,10 @@ lone aims to be the basis for writing both extremely simple and extremely comple
 
 - Run an example (lone_list mimics the nvme-cli list command)
     ```
-    lone_user@e1337ced27c4:/$ lone_setup list
-    Node             SN                   Model                                    Namespace Usage                      Format           FW Rev
-    ---------------- -------------------- ---------------------------------------- --------- -------------------------- ---------------- --------
-    0000:3a:00.0     112101120390182      TEAM TM8FP6002T                          1           2.05 TB /   2.05 TB      512    B + 0 B   V9002s65
+    $ python3 python3/lone_setup.py list
+    PciUserspaceDevice devices:
+    slot                vid:did          driver        owner   info
+    nvsim             60672:55809         nvsim         user   NVSim simulator
     ```
 
 
@@ -111,40 +110,61 @@ A very simple view of how an NVMe device operates is that a host system (or deve
 
 lone uses IO Virtualization technology to present the 3 access mechanisms above to a userspace process. This allows the development kit to create Python objects that make testing straightforward, enables combining the basic building blocks into complex tasks, and gives a user the full power of the Python language:
 
-    # Import modules
-    >>> from lone.system import System
-    >>> from lone.examples.nvme_demo_driver import NVMeDemoDriver
+    # Import NVMeDevice
     >>> from lone.nvme.device import NVMeDevice
 
-    # Create objects
-    >>> mem_mgr = System.MemoryMgr()
-    >>> nvme_device = NVMeDevice('0000:3a:00.0')
-    >>> demo_driver = NVMeDemoDriver(nvme_device, mem_mgr)
+    # Create object, using the simulator for demonstration
+    >>> nvme_device = NVMeDevice('nvsim')
 
     # Access PCIe registers
-    >>> hex(nvme_device.pcie_regs.ID.VID)
-    '0x10ec'
-    >>> hex(nvme_device.pcie_regs.ID.DID)
-    '0x5763'
+	>>> hex(nvme_device.pcie_regs.ID.VID)
+    '0xed00'
+	>>> hex(nvme_device.pcie_regs.ID.DID)
+    '0xda01'
 
     # Acccess NVMe registers
     >>> hex(nvme_device.nvme_regs.VS.MJR)
-    '0x1'
+    '0x2'
     >>> hex(nvme_device.nvme_regs.VS.MNR)
-    '0x3'
+    '0x1'
 
-    # Map device IOMMU memory
-    >>> mem = mem_mgr.malloc(4096)
-    >>> mem.iova = 0xA0000000
-    >>> nvme_device.map_dma_region_read(mem.vaddr, mem.iova, 4096)
+    # Init/enable/disable
 
-    # Enable/disable
-    >>> demo_driver.cc_disable()
+    # Check that the device is disabled
     >>> hex(nvme_device.nvme_regs.CSTS.RDY)
     '0x0'
-    >>> demo_driver.cc_enable()
+
+    # Initialize admin queues
+    >>> nvme_device.init_admin_queues()
+
+    # Set CC.EN = 1 to enable it, verify CSTS.RDY = 1
+    >>> nvme_device.cc_enable()
     >>> hex(nvme_device.nvme_regs.CSTS.RDY)
     '0x1'
+
+    # Send a command
+
+    # Import identify controller command structure
+    >>> from lone.nvme.spec.commands.admin.identify import IdentifyController
+
+    # Create the command object
+    >>> id_ctrl = IdentifyController()
+
+    # Send it to the drive, wait for response, check response status
+    >>> nvme_device.sync_cmd(id_ctrl)
+
+    # Check some returned values in data_in
+    >>> id_ctrl.data_in.MN
+    b'nvsim_0.1'
+    >>> id_ctrl.data_in.SN
+    b'EDDAE771'
+    >>> id_ctrl.data_in.FR
+    b'0.001'
+
+    # Disable, verify CSTS.RDY = 0
+    >>> nvme_device.cc_disable()
+    >>> hex(nvme_device.nvme_regs.CSTS.RDY)
+    '0x0'
 
 ## Design
 
@@ -210,4 +230,4 @@ Please take a look at the repository for [examples](https://github.com/edaelli/l
 lone is in early development. The vision is that developers and leaders in the storage industry see its value and help develop it into a sophisticated test framework.
 
 ### Questions, comments, ideas: https://github.com/edaelli/lone/discussions
-### Interesting things to help with: https://github.com/edaelli/lone/issues
+### Interesting things to help with: https://github.com/edaelli/lone/issues`
