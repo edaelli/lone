@@ -17,8 +17,8 @@ def main():
 
         # Add simulator device
         nvsim = SimpleNamespace(pci_slot='nvsim',
-                                pci_vid=0xED00,
-                                pci_did=0xDA01,
+                                pci_vid=0xEDDA,
+                                pci_did=0xE111,
                                 driver='nvsim',
                                 owner='usert ',
                                 info_string='NVSim simulator')

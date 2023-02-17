@@ -118,9 +118,9 @@ lone uses IO Virtualization technology to present the 3 access mechanisms above 
 
     # Access PCIe registers
 	>>> hex(nvme_device.pcie_regs.ID.VID)
-    '0xed00'
+    '0xedda'
 	>>> hex(nvme_device.pcie_regs.ID.DID)
-    '0xda01'
+    '0xe111'
 
     # Acccess NVMe registers
     >>> hex(nvme_device.nvme_regs.VS.MJR)

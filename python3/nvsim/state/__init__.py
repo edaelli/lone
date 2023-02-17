@@ -85,8 +85,8 @@ class NVSimState:
         self.namespaces.append(NVSimNamespace(4, 4096, '/tmp/ns_4.dat'))
 
     def init_pcie_regs(self):
-        self.pcie_regs.ID.VID = 0xED00
-        self.pcie_regs.ID.DID = 0xDA01
+        self.pcie_regs.ID.VID = 0xEDDA
+        self.pcie_regs.ID.DID = 0xE111
 
     def init_nvme_regs(self):
         self.nvme_regs.CAP.CSS = 0x40
