@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+from types import SimpleNamespace
 
 from lone.system import System
 
@@ -14,9 +15,18 @@ def main():
         # Get all available devices and list them
         devices = System.PciUserspace().devices()
 
+        # Add simulator device
+        nvsim = SimpleNamespace(pci_slot='nvsim',
+                                pci_vid=0xEDDA,
+                                pci_did=0xE111,
+                                driver='nvsim',
+                                owner='usert ',
+                                info_string='NVSim simulator')
+        devices.insert(0, nvsim)
+
         if len(devices):
             print('PciUserspaceDevice devices:')
-            fmt = '{:<16} {:>4}:{:4} {:>12} {:>12}   {}'
+            fmt = '{:<16} {:>6}:{:<6} {:>12} {:>12}   {}'
             print(fmt.format('slot', 'vid', 'did', 'driver', 'owner', 'info'))
 
             for device in devices:
