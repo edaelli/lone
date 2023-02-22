@@ -1,4 +1,6 @@
-# lone - A Stand-aLONE Storage Test Development Kit
+# <img src="./doc/icon_logo.png" width=70 align='center'>&emsp;lone
+
+# A Stand-aLONE Storage Development Kit
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
