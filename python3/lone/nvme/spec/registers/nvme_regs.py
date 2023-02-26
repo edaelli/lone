@@ -58,9 +58,13 @@ class NVMeRegisters(ComparableStruct):
         ]
 
     class Vs(ComparableStruct):
+        @property
+        def __str__(self):
+            return '{}.{}.{}'.format(self.MJR, self.MNR, self.TER)
+
         _pack_ = 1
         _fields_ = [
-            ('RSVD', ctypes.c_uint32, 8),
+            ('TER', ctypes.c_uint32, 8),
             ('MNR', ctypes.c_uint32, 8),
             ('MJR', ctypes.c_uint32, 16),
         ]

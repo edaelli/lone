@@ -45,6 +45,7 @@ def test_nvme_device_raw(nvme_device_raw):
     # Make sure that NVMe VS is not zero
     assert nvme_device_raw.nvme_regs.VS.MJR != 0
     assert nvme_device_raw.nvme_regs.VS.MNR != 0
+    assert type(nvme_device_raw.nvme_regs.VS.__str__) == str
 
     # Disable the device, setup admin queues, re-enable it
     nvme_device_raw.cc_disable()
