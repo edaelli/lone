@@ -1,6 +1,7 @@
 ''' Models NVMe Specification registers
 '''
 import ctypes
+import enum
 import logging
 
 from lone.util.struct_tools import ComparableStruct, StructFieldsIterator
@@ -11,6 +12,30 @@ class NVMeRegisters(ComparableStruct):
     '''
 
     class Cap(ComparableStruct):
+
+        class AMS(enum.Enum):
+            # Arbitration Mechanism Supported
+            WEIGHTED_ROUND_ROBIN_WITH_URGENT_PRIORITY_CLASS = 0
+            VENDOR_SPECIFIC = 1
+
+        class CSS(enum.Enum):
+            # Command Sets Supported
+            NVM_COMMAND_SET = 0x01
+            ONE_OR_MORE_IO_CMD_SETS = 0x40
+            NO_IO_CMD_SETS = 0x80
+
+        class CPS(enum.Enum):
+            # Controller Power Scope
+            NOT_REPORTED = 0
+            CONTROLLER_SCOPE = 1
+            DOMAIN_SCOPE = 2
+            NVM_SUBSYSTEM_SCOPE = 3
+
+        class CRMS(enum.Enum):
+            # Controller Ready Modes Supported
+            CONTROLLER_READY_WITH_MEDIA_SUPPORT = 0
+            CONTROLLER_READY_INDEPENDENT_OF_MEDIA_SUPPORT = 1
+
         _pack_ = 1
         _fields_ = [
             ('MQES', ctypes.c_uint64, 16),
@@ -22,12 +47,14 @@ class NVMeRegisters(ComparableStruct):
             ('NSSRS', ctypes.c_uint64, 1),
             ('CSS', ctypes.c_uint64, 8),
             ('BPS', ctypes.c_uint64, 1),
-            ('RSVD_1', ctypes.c_uint64, 2),
+            ('CPS', ctypes.c_uint64, 2),
             ('MPSMIN', ctypes.c_uint64, 4),
             ('MPSMAX', ctypes.c_uint64, 4),
             ('PMRS', ctypes.c_uint64, 1),
             ('CMBS', ctypes.c_uint64, 1),
-            ('RSVD_2', ctypes.c_uint64, 6),
+            ('NSSS', ctypes.c_uint64, 1),
+            ('CRMS', ctypes.c_uint64, 2),
+            ('RSVD_2', ctypes.c_uint64, 3),
         ]
 
     class Vs(ComparableStruct):
@@ -144,6 +171,30 @@ class NVMeRegisters(ComparableStruct):
             ('TBD', ctypes.c_uint32),
         ]
 
+    class Cmbebs(ComparableStruct):
+        _pack_ = 1
+        _fields_ = [
+            ('TBD', ctypes.c_uint32),
+        ]
+
+    class Cmbswtp(ComparableStruct):
+        _pack_ = 1
+        _fields_ = [
+            ('TBD', ctypes.c_uint32),
+        ]
+
+    class Nssd(ComparableStruct):
+        _pack_ = 1
+        _fields_ = [
+            ('TBD', ctypes.c_uint32),
+        ]
+
+    class Crto(ComparableStruct):
+        _pack_ = 1
+        _fields_ = [
+            ('TBD', ctypes.c_uint32),
+        ]
+
     class Pmrcap(ComparableStruct):
         _pack_ = 1
         _fields_ = [
@@ -174,7 +225,13 @@ class NVMeRegisters(ComparableStruct):
             ('TBD', ctypes.c_uint32),
         ]
 
-    class Pmrmsc(ComparableStruct):
+    class Pmrmscl(ComparableStruct):
+        _pack_ = 1
+        _fields_ = [
+            ('TBD', ctypes.c_uint64),
+        ]
+
+    class Pmrmscu(ComparableStruct):
         _pack_ = 1
         _fields_ = [
             ('TBD', ctypes.c_uint64),
@@ -208,14 +265,19 @@ class NVMeRegisters(ComparableStruct):
         ('BPMBL', Bpmbl),
         ('CMBMSC', Cmbmsc),
         ('CMBSTS', Cmbsts),
-        ('RSVD_1', ctypes.c_uint32 * 873),
+        ('CMBEBS', Cmbebs),
+        ('CMBSWTP', Cmbswtp),
+        ('NSSD', Nssd),
+        ('CRTO', Crto),
+        ('RSVD_1', ctypes.c_uint32 * 868),
         ('PMRCAP', Pmrcap),
         ('PMRCTL', Pmrctl),
         ('PMRSTS', Pmrsts),
         ('PMREBS', Pmrebs),
         ('PMRSWTP', Pmrswtp),
-        ('PMRMSC', Pmrmsc),
-        ('RSVD_2', ctypes.c_uint32 * 121),
+        ('PMRMSCL', Pmrmscl),
+        ('PMRMSCU', Pmrmscu),
+        ('RSVD_2', ctypes.c_uint32 * 120),
         ('SQNDBS', Sqndbs * 1024),
     ]
 
