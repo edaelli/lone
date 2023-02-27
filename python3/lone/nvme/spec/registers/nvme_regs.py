@@ -383,14 +383,6 @@ class NVMeRegisters(ComparableStruct):
             ('CBA', ctypes.c_uint32),
         ]
 
-    class Sqndbs(ComparableStruct):
-        _pack_ = 1
-        _fields_ = [
-            ('SQTAIL', ctypes.c_uint32),
-            ('CQHEAD', ctypes.c_uint32),
-            # TODO: ADD EXTRA STRIDE HERE?
-        ]
-
     _pack_ = 1
     _fields_ = [
         ('CAP', Cap),
@@ -424,7 +416,6 @@ class NVMeRegisters(ComparableStruct):
         ('PMRMSCL', Pmrmscl),
         ('PMRMSCU', Pmrmscu),
         ('RSVD_2', ctypes.c_uint32 * 120),
-        ('SQNDBS', Sqndbs * 1024),
     ]
 
     def log(self):
@@ -433,3 +424,19 @@ class NVMeRegisters(ComparableStruct):
         for field, value in StructFieldsIterator(self):
             if 'RSVD' not in field:
                 log.debug('{:50} 0x{:x}'.format(field, value))
+
+
+class NVMeRegistersPCIeTransport(NVMeRegisters):
+
+    class Sqndbs(ComparableStruct):
+        _pack_ = 1
+        _fields_ = [
+            ('SQTAIL', ctypes.c_uint32),
+            ('CQHEAD', ctypes.c_uint32),
+            # TODO: ADD EXTRA STRIDE HERE?
+        ]
+
+    _pack_ = 1
+    _fields_ = [
+        ('SQNDBS', Sqndbs * 1024),
+    ]

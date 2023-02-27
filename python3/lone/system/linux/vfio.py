@@ -10,7 +10,7 @@ import mmap
 
 from lone.system import SysPciUserspace, SysPciUserspaceDevice
 from lone.nvme.spec.registers.pcie_regs import PCIeRegistersIndirect
-from lone.nvme.spec.registers.nvme_regs import NVMeRegisters
+from lone.nvme.spec.registers.nvme_regs import NVMeRegistersPCIeTransport
 
 import logging
 logger = logging.getLogger('vfio')
@@ -267,7 +267,7 @@ class SysVfioIfc(SysPciUserspaceDevice):
         self.nvme_mmap = mmap.mmap(self.device_fd,
                                    length=self.bars[0]['size'],
                                    offset=self.bars[0]['offset'])
-        self.nvme_registers = NVMeRegisters.from_buffer(self.nvme_mmap)
+        self.nvme_registers = NVMeRegistersPCIeTransport.from_buffer(self.nvme_mmap)
         return self.nvme_registers
 
     def map_dma_region(self, vaddr, iova, size, flags):
