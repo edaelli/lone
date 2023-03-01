@@ -371,16 +371,16 @@ class NVMeRegisters(ComparableStruct):
     class Pmrmscl(ComparableStruct):
         _pack_ = 1
         _fields_ = [
-            ('RSVD_0', ctypes.c_uint32, 1),
-            ('CMSE', ctypes.c_uint32, 1),
-            ('RSVD_1', ctypes.c_uint32, 10),
-            ('CBA', ctypes.c_uint32, 20),
+            ('RSVD_0', ctypes.c_uint64, 1),
+            ('CMSE', ctypes.c_uint64, 1),
+            ('RSVD_1', ctypes.c_uint64, 10),
+            ('CBA', ctypes.c_uint64, 20),
         ]
 
     class Pmrmscu(ComparableStruct):
         _pack_ = 1
         _fields_ = [
-            ('CBA', ctypes.c_uint32),
+            ('CBA', ctypes.c_uint64),
         ]
 
     _pack_ = 1
