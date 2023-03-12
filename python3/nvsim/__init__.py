@@ -5,7 +5,7 @@ import threading
 from lone.nvme.device import NVMeDeviceCommon
 from lone.system import Memory, MemoryLocation
 from lone.nvme.spec.registers.pcie_regs import PCIeRegistersDirect
-from lone.nvme.spec.registers.nvme_regs import NVMeRegisters
+from lone.nvme.spec.registers.nvme_regs import NVMeRegistersPCIeTransport
 from nvsim.state import NVSimState
 from nvsim.reg_handlers.pcie import PCIeRegChangeHandler
 from nvsim.reg_handlers.nvme import NVMeRegChangeHandler
@@ -119,7 +119,7 @@ class NVMeSimulator(NVMeDeviceCommon):
         self.pcie_regs.init_capabilities()
 
         # Create the object to access NVMe registers
-        self.nvme_regs = NVMeRegisters()
+        self.nvme_regs = NVMeRegistersPCIeTransport()
 
         # Initialize common
         super().__init__()
