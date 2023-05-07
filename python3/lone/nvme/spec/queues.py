@@ -139,12 +139,12 @@ class QueueMgr:
     def remove_cq(self, rem_cqid):
         for (sqid, cqid), (sq, cq) in self.nvme_queues.items():
             if cqid == rem_cqid:
+                assert sq is None, "Removing CQ with not None SQ! {}".format(cqid)
                 self.nvme_queues[(sqid, cqid)] = (sq, None)
 
     def remove_sq(self, rem_sqid):
         for (sqid, cqid), (sq, cq) in self.nvme_queues.items():
             if sqid == rem_sqid:
-                assert cq is None, "Removing SQ with not None CQ! {}".format(cqid)
                 self.nvme_queues[(sqid, cqid)] = (None, cq)
 
     @property
