@@ -16,6 +16,8 @@ from lone.nvme.spec.commands.admin.identify import (Identify,
                                                     IdentifyUUIDList)
 from lone.nvme.spec.commands.admin.create_io_completion_q import CreateIOCompletionQueue
 from lone.nvme.spec.commands.admin.create_io_submission_q import CreateIOSubmissionQueue
+from lone.nvme.spec.commands.admin.delete_io_completion_q import DeleteIOCompletionQueue
+from lone.nvme.spec.commands.admin.delete_io_submission_q import DeleteIOSubmissionQueue
 from lone.nvme.spec.commands.admin.format_nvm import FormatNVM
 
 import logging
@@ -135,6 +137,38 @@ class NVSimCreateIOSubmissionQueue:
         self.complete(command, sq, cq, status_codes['Successful Completion'])
 
 
+class NVSimDeleteIOCompletionQueue:
+    OPC = DeleteIOCompletionQueue().OPC
+
+    def __call__(self, nvsim_state, command, sq, cq):
+        del_iocq_cmd = DeleteIOCompletionQueue.from_buffer(command)
+        del_cqid = del_iocq_cmd.QID
+
+        # Cant delete the admin cq
+        assert del_cqid != 0, "DeleteIOCompletionQueue command for qid = 0!"
+
+        # Delete internal queue
+        nvsim_state.queue_mgr.remove_cq(del_cqid)
+
+        self.complete(command, sq, cq, status_codes['Successful Completion'])
+
+
+class NVSimDeleteIOSubmissionQueue:
+    OPC = DeleteIOSubmissionQueue().OPC
+
+    def __call__(self, nvsim_state, command, sq, cq):
+        del_iosq_cmd = DeleteIOSubmissionQueue.from_buffer(command)
+        del_sqid = del_iosq_cmd.QID
+
+        # Cant delete the admin sq
+        assert del_sqid != 0, "DeleteIOSubmissionQueue command for qid = 0!"
+
+        # Delete internal queue
+        nvsim_state.queue_mgr.remove_sq(del_sqid)
+
+        self.complete(command, sq, cq, status_codes['Successful Completion'])
+
+
 class NVSimFormat:
     OPC = FormatNVM().OPC
 
@@ -152,7 +186,9 @@ admin_handlers = NvsimCommandHandlers()
 for handler in [
     NVSimIdentify,
     NVSimCreateIOCompletionQueue,
+    NVSimDeleteIOCompletionQueue,
     NVSimCreateIOSubmissionQueue,
+    NVSimDeleteIOSubmissionQueue,
     NVSimFormat,
 ]:
     admin_handlers.register(handler)

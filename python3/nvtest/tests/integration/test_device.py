@@ -127,6 +127,13 @@ def test_init_io_queues(nvme_device_raw):
     nvme_device_raw.init_io_queues()
 
 
+def test_free_io_queues(nvme_device_raw):
+    test_init_admin_queues(nvme_device_raw)
+    nvme_device_raw.cc_enable()
+    nvme_device_raw.init_io_queues()
+    nvme_device_raw.free_io_queues()
+
+
 def test_ns_size(nvme_device_raw):
     usage, total, unit = NVMeDeviceCommon.ns_size(None, 512, 1, 1)
     assert usage == 512.0 and total == 512.0 and unit == 'B'
