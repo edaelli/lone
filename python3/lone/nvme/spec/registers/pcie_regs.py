@@ -1,71 +1,20 @@
-import os
 import ctypes
-import struct
 import logging
 from collections import namedtuple
 
-from lone.util.struct_tools import ComparableStruct, StructFieldsIterator
+from lone.util.struct_tools import StructFieldsIterator
+from lone.nvme.spec.registers import RegsStructAccess
 
 
-# namedtuple for storing information on how to access
 #   pci registers in various implementations.
 PCIeAccessData = namedtuple('PCIeAccessData', 'get_func set_func')
 
 
 def pcie_reg_struct_factory(access_data):
 
-    class PCIeRegsStruct(ComparableStruct):
+    class NVMePCIeRegisters(ctypes.Structure):
 
-        def __setattr__(self, name, value):
-
-            if not self._access_.set_func:
-                object.__setattr__(self, name, value)
-            else:
-                # Get pci registers offset and size for this structure
-                size_bytes = ctypes.sizeof(self.__class__)
-                offset = self._base_offset_
-
-                # READ size_bytes from offset into a temporary buffer
-                #   of the same type as ourselves
-                read_data = self._access_.get_func(offset, size_bytes)
-                read_obj = self.__class__.from_buffer(read_data)
-
-                # MODIFY our read data with the new value at name
-                super(PCIeRegsStruct, read_obj).__setattr__(name, value)
-
-                # WRITE it back to the registers
-                self._access_.set_func(offset, size_bytes, read_data)
-
-        def __getattribute__(self, name):
-
-            access = object.__getattribute__(self, '_access_')
-            if not access.get_func:
-                return object.__getattribute__(self, name)
-            else:
-                # If this is one of the fields in our structure, go read the latest
-                #  value before returning
-                fields = object.__getattribute__(self, '_fields_')
-                if name in [f[0] for f in fields]:
-
-                    # READ the latest value from registers
-                    size_bytes = ctypes.sizeof(self.__class__)
-                    offset = self._base_offset_
-                    data_bytes = self._access_.get_func(offset, size_bytes)
-
-                    # Create an object with the read value
-                    data = self.__class__.from_buffer(data_bytes)
-                    value = object.__getattribute__(data, name)
-
-                    # Return it
-                    return value
-
-                else:
-                    # Anything not in our fields, just call the base object
-                    return object.__getattribute__(self, name)
-
-    class NVMePCIeRegisters(PCIeRegsStruct):
-
-        class Id(PCIeRegsStruct):
+        class Id(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('VID', ctypes.c_uint32, 16),
@@ -74,7 +23,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x00
 
-        class Cmd(PCIeRegsStruct):
+        class Cmd(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('IOSE', ctypes.c_uint16, 1),
@@ -93,7 +42,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x04
 
-        class Sts(PCIeRegsStruct):
+        class Sts(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('RSVD_0', ctypes.c_uint16, 3),
@@ -113,7 +62,15 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x06
 
-        class Cc(PCIeRegsStruct):
+        class Rid(RegsStructAccess):
+            _pack = 1
+            _fields_ = [
+                ('RID', ctypes.c_uint8),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x08
+
+        class Cc(RegsStructAccess):
             _pack = 1
             _fields_ = [
                 ('PI', ctypes.c_uint8),
@@ -123,7 +80,23 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x09
 
-        class Htype(PCIeRegsStruct):
+        class Cls(RegsStructAccess):
+            _pack = 1
+            _fields_ = [
+                ('CLS', ctypes.c_uint8),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x0C
+
+        class Mlt(RegsStructAccess):
+            _pack = 1
+            _fields_ = [
+                ('MLT', ctypes.c_uint8),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x0D
+
+        class Htype(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('HL', ctypes.c_uint8, 7),
@@ -132,7 +105,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x0E
 
-        class Bist(PCIeRegsStruct):
+        class Bist(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('CC', ctypes.c_uint8, 4),
@@ -143,7 +116,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x0F
 
-        class Bar0(PCIeRegsStruct):
+        class Bar0(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('RTE', ctypes.c_uint32, 1),
@@ -155,7 +128,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x10
 
-        class Bar1(PCIeRegsStruct):
+        class Bar1(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('BA', ctypes.c_uint32),
@@ -163,7 +136,49 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x14
 
-        class Ss(PCIeRegsStruct):
+        class Bar2(RegsStructAccess):
+            _pack_ = 1
+            _fields_ = [
+                ('RTE', ctypes.c_uint32, 1),
+                ('RSVD_1', ctypes.c_uint32, 13),
+                ('BA', ctypes.c_uint32, 18),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x18
+
+        class Bar3(RegsStructAccess):
+            _pack_ = 1
+            _fields_ = [
+                ('VU', ctypes.c_uint32),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x1C
+
+        class Bar4(RegsStructAccess):
+            _pack_ = 1
+            _fields_ = [
+                ('VU', ctypes.c_uint32),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x20
+
+        class Bar5(RegsStructAccess):
+            _pack_ = 1
+            _fields_ = [
+                ('VU', ctypes.c_uint32),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x24
+
+        class Ccptr(RegsStructAccess):
+            _pack_ = 1
+            _fields_ = [
+                ('NOT_SUPPORTED', ctypes.c_uint32),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x28
+
+        class Ss(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('SSVID', ctypes.c_uint16),
@@ -172,7 +187,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x2C
 
-        class Erom(PCIeRegsStruct):
+        class Erom(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('RBA', ctypes.c_uint32),
@@ -180,7 +195,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x30
 
-        class Cap(PCIeRegsStruct):
+        class Cap(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('CP', ctypes.c_uint8),
@@ -188,7 +203,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x34
 
-        class Intr(PCIeRegsStruct):
+        class Intr(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('ILINE', ctypes.c_uint8),
@@ -197,7 +212,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x3C
 
-        class Mgnt(PCIeRegsStruct):
+        class Mgnt(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('GNT', ctypes.c_uint8),
@@ -205,7 +220,7 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x3E
 
-        class Mlat(PCIeRegsStruct):
+        class Mlat(RegsStructAccess):
             _pack_ = 1
             _fields_ = [
                 ('LAT', ctypes.c_uint8),
@@ -220,19 +235,19 @@ def pcie_reg_struct_factory(access_data):
             ('ID', Id),
             ('CMD', Cmd),
             ('STS', Sts),
-            ('RID', ctypes.c_uint8),
+            ('RID', Rid),
             ('CC', Cc),
-            ('CLS', ctypes.c_uint8),
-            ('MLT', ctypes.c_uint8),
+            ('CLS', Cls),
+            ('MLT', Mlt),
             ('HTYPE', Htype),
             ('BIST', Bist),
             ('BAR0', Bar0),
             ('BAR1', Bar1),
-            ('BAR2', ctypes.c_uint32),
-            ('BAR3', ctypes.c_uint32),
-            ('BAR4', ctypes.c_uint32),
-            ('BAR5', ctypes.c_uint32),
-            ('CCPTR', ctypes.c_uint32),
+            ('BAR2', Bar2),
+            ('BAR3', Bar3),
+            ('BAR4', Bar4),
+            ('BAR5', Bar5),
+            ('CCPTR', Ccptr),
             ('SS', Ss),
             ('EROM', Erom),
             ('CAP', Cap),
@@ -258,8 +273,8 @@ class PCIeRegisters:
         self.capabilities = []
 
         # Make a copy of the capabilities data to loop through
-        cap_data = bytearray([0] * ctypes.sizeof(self.registers))
-        for i, r in enumerate(self.RSVD_CAP, start=type(self.registers).RSVD_CAP.offset):
+        cap_data = bytearray([0] * ctypes.sizeof(self))
+        for i, r in enumerate(self.RSVD_CAP, start=type(self).RSVD_CAP.offset):
             cap_data[i] = r
 
         # Walk regular and extended capabilities
@@ -300,102 +315,14 @@ class PCIeRegisters:
 
     def log(self):
         log = logging.getLogger('pcie_regs')
-        for field, value in StructFieldsIterator(self.registers):
+        for field, value in StructFieldsIterator(self):
             if 'RSVD' not in field:
                 log.debug('{:50} 0x{:x}'.format(field, value))
+                print('{:50} 0x{:x}'.format(field, value))
 
 
 class PCIeRegistersDirect(pcie_reg_struct_factory(PCIeAccessData(None, None)), PCIeRegisters):
-
-    def __getattr__(self, name):
-
-        # We dont need/use a registers attribute, but if code wants it
-        #  self is the equivalent
-        if name == 'registers':
-            return self
-
-        # Anything else is an AttributeError
-        raise AttributeError('{} object has no attribute attribute "{}"'.format(
-                             self.__class__.__name__, name))
-
-
-class PCIeRegistersIndirect(PCIeRegisters):
-
-    def __init__(self, fd, base_offset, size):
-        # Create our access data
-        self.registers = pcie_reg_struct_factory(PCIeAccessData(self.pcie_get, self.pcie_set))()
-        self.fd = fd
-        self.base_offset = base_offset
-        self.size = size
-
-    def pcie_get(self, offset, size_bytes):
-        data = os.pread(self.fd, size_bytes, self.base_offset + offset)
-        return bytearray(data)
-
-    def pcie_set(self, offset, size_bytes, values):
-        assert size_bytes == os.pwrite(self.fd, bytes(values), self.base_offset + offset)
-
-    def __getattr__(self, name):
-
-        # Is this a field we can indirectly read?
-        if name != 'registers' and name in dir(self.registers):
-            field = [f for f in self.registers._fields_ if f[0] == name][0]
-            field_class = field[1]
-            offset = getattr(type(self.registers), name).offset
-            size_bytes = getattr(type(self.registers), name).size
-
-            # Read current PCI config register(s)
-            data = self.pcie_get(offset, size_bytes)
-
-            # Create an object of the correct type and return it
-            if issubclass(field_class, ctypes.Structure):
-                # If this is a structure, just create one from the
-                #  bytes we just read and return it
-                return field_class.from_buffer(data)
-
-            elif issubclass(field_class, ctypes.Array):
-                # If this is a ctypes array, just return the array
-                return data
-
-            else:
-                # convert to integer, the PCIe registers structure only
-                #  has 8 and 32 sized attributes for now.
-                if size_bytes == 1:
-                    v = struct.unpack('B', data)[0]
-                elif size_bytes == 4:
-                    v = struct.unpack('I', data)[0]
-                else:
-                    # There is really no way to get here as the PCIe structure
-                    #  does not have anything other than 1 and 4 byte values except
-                    #  for testing (RSVD_1)
-                    raise AttributeError('Do not understand type: {}'.format(type(field_class)))
-                return v
-
-        # Invalid attribute
-        raise AttributeError('{} object has no attribute attribute "{}"'.format(
-                             self.__class__.__name__, name))
-
-    def __setattr__(self, name, value):
-
-        if name != 'registers' and name in dir(self.registers):
-            field = [f for f in self.registers._fields_ if f[0] == name][0]
-            field_class = field[1]
-            offset = getattr(type(self.registers), name).offset
-            size_bytes = getattr(type(self.registers), name).size
-
-            if issubclass(field_class, ctypes.Structure):
-                # TODO: is this accurate??
-                values = bytearray(getattr(self, name))
-
-            elif issubclass(field_class, ctypes.Array):
-                # TODO Check if value is an array type
-                values = value[:size_bytes]
-            else:
-                # TODO Check if big is the right endian here
-                values = value.to_bytes(size_bytes, 'big')
-            self.pcie_set(offset, size_bytes, values)
-        else:
-            object.__setattr__(self, name, value)
+    pass
 
 
 class PCICapability(ctypes.Structure):
@@ -410,6 +337,7 @@ class PCICapability(ctypes.Structure):
         for field, value in StructFieldsIterator(self):
             if 'RSVD' not in field:
                 log.debug('{:50} 0x{:x}'.format(field, value))
+                print('{:50} 0x{:x}'.format(field, value))
 
 
 class PCICapabilityGen(PCICapability):

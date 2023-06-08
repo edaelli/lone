@@ -33,8 +33,8 @@ def test_nvme_device_raw(nvme_device_raw):
     from lone.nvme.spec.registers.pcie_regs import PCIeRegisters
     assert issubclass(type(nvme_device_raw.pcie_regs), PCIeRegisters)
 
-    from lone.nvme.spec.registers.nvme_regs import NVMeRegistersPCIeTransport
-    assert type(nvme_device_raw.nvme_regs) == NVMeRegistersPCIeTransport
+    from lone.nvme.spec.registers.nvme_regs import NVMeRegistersDirect
+    assert type(nvme_device_raw.nvme_regs) == NVMeRegistersDirect
 
     # Check a couple of values in pcie and nvme for demonstration
 
