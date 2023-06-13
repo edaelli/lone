@@ -9,8 +9,10 @@ import pyudev
 import mmap
 
 from lone.system import SysPciUserspace, SysPciUserspaceDevice
-from lone.nvme.spec.registers.pcie_regs import PCIeRegistersIndirect
-from lone.nvme.spec.registers.nvme_regs import NVMeRegistersPCIeTransport
+from lone.nvme.spec.registers.pcie_regs import (PCIeRegisters,
+                                                PCIeAccessData,
+                                                pcie_reg_struct_factory)
+from lone.nvme.spec.registers.nvme_regs import NVMeRegistersDirect
 
 import logging
 logger = logging.getLogger('vfio')
@@ -258,16 +260,29 @@ class SysVfioIfc(SysPciUserspaceDevice):
         # Reset the device
         self.reset()
 
+    def pcie_get(self, offset):
+        data = os.pread(self.device_fd, 1, self.pci_region['offset'] + offset)
+        return int.from_bytes(data, 'little')
+
+    def pcie_set(self, offset, value):
+        assert os.pwrite(self.device_fd,
+                         value.to_bytes(1, 'little'),
+                         self.pci_region['offset'] + offset)
+
     def pci_regs(self):
-        return PCIeRegistersIndirect(self.device_fd,
-                                     self.pci_region['offset'],
-                                     self.pci_region['size'])
+
+        class PCIeRegistersVFIO(pcie_reg_struct_factory(PCIeAccessData(self.pcie_get,
+                                                                       self.pcie_set)),
+                                PCIeRegisters):
+            pass
+
+        return PCIeRegistersVFIO()
 
     def nvme_regs(self):
         self.nvme_mmap = mmap.mmap(self.device_fd,
                                    length=self.bars[0]['size'],
                                    offset=self.bars[0]['offset'])
-        self.nvme_registers = NVMeRegistersPCIeTransport.from_buffer(self.nvme_mmap)
+        self.nvme_registers = NVMeRegistersDirect.from_buffer(self.nvme_mmap)
         return self.nvme_registers
 
     def map_dma_region(self, vaddr, iova, size, flags):

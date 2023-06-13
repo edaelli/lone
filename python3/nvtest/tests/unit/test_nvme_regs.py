@@ -1,6 +1,6 @@
-from lone.nvme.spec.registers.nvme_regs import NVMeRegisters
+from lone.nvme.spec.registers.nvme_regs import NVMeRegistersDirect
 
 
 def test_nvme_regs():
-    regs = NVMeRegisters()
+    regs = NVMeRegistersDirect()
     regs.log()

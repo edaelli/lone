@@ -323,7 +323,10 @@ def test_sysvfioifc_pci_regs(mocker):
     ifc = SysVfioIfc('test', init=False)
     ifc.device_fd = 1
     ifc.pci_region = {'size': 0, 'offset': 0}
-    ifc.pci_regs()
+    pci_regs = ifc.pci_regs()
+
+    assert pci_regs.ID.VID == 0x0000
+    pci_regs.ID.VID = 0x1234
 
 
 def test_sysvfioifc_nvme_regs(mocker):

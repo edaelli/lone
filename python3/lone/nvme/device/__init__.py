@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from lone.system import System, DMADirection
 from lone.injection import Injection
 from lone.nvme.spec.queues import QueueMgr, NVMeSubmissionQueue, NVMeCompletionQueue
-from lone.nvme.spec.registers.nvme_regs import NVMeRegisters
 from lone.nvme.spec.prp import PRP
 from lone.nvme.spec.structures import CQE
 from lone.nvme.spec.commands.admin.identify import (IdentifyController,
@@ -113,7 +112,6 @@ class NVMeDeviceCommon:
         self.nvme_regs.ACQ.ACQB = self.acq_mem.iova
 
         # Set up CC
-        self.nvme_regs.CC = NVMeRegisters.Cc(0)
         self.nvme_regs.CC.IOSQES = 6  # 2 ** 6 = 64 bytes per command entry
         self.nvme_regs.CC.IOCQES = 4  # 2 ** 4 = 16 bytes per completion entry
 
