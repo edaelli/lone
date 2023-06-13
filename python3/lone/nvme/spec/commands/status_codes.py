@@ -5,7 +5,11 @@ logger = logging.getLogger('prp')
 
 
 class NVMeStatusCodeException(Exception):
-    pass
+    def __init__(self, code):
+        self.code = code
+        message = 'SF.SC: 0x{:02x} "{}" cmd: {}'.format(
+            code.value, code.name, code.cmd_type.__name__)
+        super().__init__(message)
 
 
 class NVMeStatusCode:
@@ -114,9 +118,7 @@ class NVMeStatusCodes:
         else:
             code = self.get(command)
             if raise_exc:
-                message = 'SF.SC: 0x{:02x} "{}" cmd: {}'.format(
-                    code.value, code.name, code.cmd_type.__name__)
-                raise NVMeStatusCodeException(message)
+                raise NVMeStatusCodeException(code)
 
     def __getitem__(self, key):
 
