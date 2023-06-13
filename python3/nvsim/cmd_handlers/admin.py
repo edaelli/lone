@@ -16,6 +16,10 @@ from lone.nvme.spec.commands.admin.identify import (Identify,
                                                     IdentifyUUIDList)
 from lone.nvme.spec.commands.admin.create_io_completion_q import CreateIOCompletionQueue
 from lone.nvme.spec.commands.admin.create_io_submission_q import CreateIOSubmissionQueue
+from lone.nvme.spec.commands.admin.delete_io_completion_q import DeleteIOCompletionQueue
+from lone.nvme.spec.commands.admin.delete_io_submission_q import DeleteIOSubmissionQueue
+from lone.nvme.spec.commands.admin.get_log_page import GetLogPage
+from lone.nvme.spec.commands.admin.get_log_page import GetLogPageSupportedLogPages
 from lone.nvme.spec.commands.admin.format_nvm import FormatNVM
 
 import logging
@@ -135,6 +139,84 @@ class NVSimCreateIOSubmissionQueue:
         self.complete(command, sq, cq, status_codes['Successful Completion'])
 
 
+class NVSimDeleteIOCompletionQueue:
+    OPC = DeleteIOCompletionQueue().OPC
+
+    def __call__(self, nvsim_state, command, sq, cq):
+        del_iocq_cmd = DeleteIOCompletionQueue.from_buffer(command)
+        del_cqid = del_iocq_cmd.QID
+
+        # Cant delete the admin cq
+        assert del_cqid != 0, "DeleteIOCompletionQueue command for qid = 0!"
+
+        # Delete internal queue
+        nvsim_state.queue_mgr.remove_cq(del_cqid)
+
+        self.complete(command, sq, cq, status_codes['Successful Completion'])
+
+
+class NVSimDeleteIOSubmissionQueue:
+    OPC = DeleteIOSubmissionQueue().OPC
+
+    def __call__(self, nvsim_state, command, sq, cq):
+        del_iosq_cmd = DeleteIOSubmissionQueue.from_buffer(command)
+        del_sqid = del_iosq_cmd.QID
+
+        # Cant delete the admin sq
+        assert del_sqid != 0, "DeleteIOSubmissionQueue command for qid = 0!"
+
+        # Delete internal queue
+        nvsim_state.queue_mgr.remove_sq(del_sqid)
+
+        self.complete(command, sq, cq, status_codes['Successful Completion'])
+
+
+class NVSimGetLogPage:
+    OPC = GetLogPage().OPC
+
+    def __call__(self, nvsim_state, command, sq, cq):
+        glp_cmd = GetLogPage.from_buffer(command)
+
+        # Whick log id are we servicing?
+        if glp_cmd.LID == 0:
+
+            # Get the Supported Log Pages command
+            glp_cmd = GetLogPageSupportedLogPages.from_buffer(command)
+
+            # Figure out how many bytes are we transferring
+            num_bytes = (((glp_cmd.NUMDU << 16) | glp_cmd.NUMDL) + 1) * 4
+
+            # Claim support for all pages, index offset supported
+            data_out = glp_cmd.data_in_type()
+            for lid in range(256):
+                data_out.LIDS[lid].LSUPP = 1
+                data_out.LIDS[lid].IOS = 1
+            data_out = bytearray(data_out)
+
+            # Offset
+            offset = (glp_cmd.LPOU << 32) | (glp_cmd.LPOL & 0xFFFFFFFF)
+
+            # Did the host ask for a byte offset or an index offset?
+            if glp_cmd.OT == 0:
+                # Offset in bytes
+                data_out = data_out[offset:]
+            else:
+                # Offset in structure index
+                logger.error('OT = 1 not yet implemented!')
+                return self.complete(command, sq, cq, status_codes['Invalid Field in Command'])
+
+            # Copy data to the host's PRP
+            prp = PRP(num_bytes, nvsim_state.mps).from_address(glp_cmd.DPTR.PRP.PRP1,
+                                                               glp_cmd.DPTR.PRP.PRP2)
+            prp.set_data_buffer(data_out)
+
+            # Complete command
+            self.complete(command, sq, cq, status_codes['Successful Completion'])
+
+        else:
+            self.complete(command, sq, cq, status_codes['Invalid Log Page', GetLogPage])
+
+
 class NVSimFormat:
     OPC = FormatNVM().OPC
 
@@ -152,7 +234,10 @@ admin_handlers = NvsimCommandHandlers()
 for handler in [
     NVSimIdentify,
     NVSimCreateIOCompletionQueue,
+    NVSimDeleteIOCompletionQueue,
     NVSimCreateIOSubmissionQueue,
+    NVSimDeleteIOSubmissionQueue,
+    NVSimGetLogPage,
     NVSimFormat,
 ]:
     admin_handlers.register(handler)

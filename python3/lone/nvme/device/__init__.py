@@ -15,6 +15,8 @@ from lone.nvme.spec.commands.admin.identify import (IdentifyController,
                                                     IdentifyUUIDList)
 from lone.nvme.spec.commands.admin.create_io_completion_q import CreateIOCompletionQueue
 from lone.nvme.spec.commands.admin.create_io_submission_q import CreateIOSubmissionQueue
+from lone.nvme.spec.commands.admin.delete_io_completion_q import DeleteIOCompletionQueue
+from lone.nvme.spec.commands.admin.delete_io_submission_q import DeleteIOSubmissionQueue
 from lone.nvme.spec.commands.status_codes import status_codes, NVMeStatusCodeException
 
 import logging
@@ -194,6 +196,30 @@ class NVMeDeviceCommon:
                                NVMeDeviceCommon.cq_entry_size,
                                queue_id,
                                ctypes.addressof(self.nvme_regs.SQNDBS[0]) + ((queue_id * 8) + 4)))
+
+    def free_io_queues(self):
+
+        # First delete all submission queuees
+        for (sqid, cqid), (sq, cq) in self.queue_mgr.nvme_queues.items():
+
+            # Never delete Admin queues
+            if sqid == 0 and cqid == 0:
+                continue
+
+            # Delete IO submission queue
+            del_sq_cmd = DeleteIOSubmissionQueue(QID=sqid)
+            self.sync_cmd(del_sq_cmd, timeout_s=1)
+
+        # Then delete all completion queuees
+        for (sqid, cqid), (sq, cq) in self.queue_mgr.nvme_queues.items():
+
+            # Never delete Admin queues
+            if sqid == 0 and cqid == 0:
+                continue
+
+            # Delete IO completion queue
+            del_cq_cmd = DeleteIOCompletionQueue(QID=cqid)
+            self.sync_cmd(del_cq_cmd, timeout_s=1)
 
     def ns_size(self, lba_ds_bytes, nsze, nuse):
 

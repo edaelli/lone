@@ -5,7 +5,11 @@ logger = logging.getLogger('prp')
 
 
 class NVMeStatusCodeException(Exception):
-    pass
+    def __init__(self, code):
+        self.code = code
+        message = 'SF.SC: 0x{:02x} "{}" cmd: {}'.format(
+            code.value, code.name, code.cmd_type.__name__)
+        super().__init__(message)
 
 
 class NVMeStatusCode:
@@ -100,7 +104,8 @@ class NVMeStatusCodes:
         # Then command specific if SCT != 0
         else:
             c = [v for k, v in self.__codes.items() if (
-                v.value == command.cqe.SF.SC and v.cmd_type == type(command))]
+                v.value == command.cqe.SF.SC and (
+                    v.cmd_type == type(command) or v.cmd_type in type(command).__bases__))]
 
         assert len(c) == 1, 'Found {} status codes for command!'.format(len(c))
         return c[0]
@@ -113,11 +118,15 @@ class NVMeStatusCodes:
         else:
             code = self.get(command)
             if raise_exc:
-                message = 'SF.SC: 0x{:02x} "{}" cmd: {}'.format(
-                    code.value, code.name, code.cmd_type.__name__)
-                raise NVMeStatusCodeException(message)
+                raise NVMeStatusCodeException(code)
 
-    def __getitem__(self, key, cmd_type=Generic):
+    def __getitem__(self, key):
+
+        if type(key) == tuple:
+            key, cmd_type = key
+        else:
+            cmd_type = Generic
+
         if type(key) == int:
             return self.__codes[(key, cmd_type)]
         elif type(key) == str:
