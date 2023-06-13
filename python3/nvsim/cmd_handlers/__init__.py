@@ -1,4 +1,5 @@
 from lone.nvme.spec.structures import CQE
+from lone.nvme.spec.structures import Generic
 
 import logging
 logger = logging.getLogger('nvsim_cmd_h')
@@ -21,6 +22,8 @@ class NvsimCommandHandler:
         # Complete the command
         cqe = CQE()
         cqe.CID = command.CID
+        if status_code.cmd_type != Generic:
+            cqe.SF.SCT = 1
         cqe.SF.SC = int(status_code)
         cqe.SQID = sq.qid
         cqe.SQHD = sq.head.value

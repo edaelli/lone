@@ -77,6 +77,44 @@ class IdentifyNamespace(Identify):
 
 class IdentifyControllerData(DataInCommon):
     size = 4096
+
+    class PowerStateDesc(ctypes.Structure):
+        _pack_ = 1
+        size = 32
+        _fields_ = [
+            ('MP', ctypes.c_uint16),
+            ('RSVD_0', ctypes.c_uint8),
+            ('MXPS', ctypes.c_uint8, 1),
+            ('NOPS', ctypes.c_uint8, 1),
+            ('RSVD_1', ctypes.c_uint8, 6),
+
+            ('ENLAT', ctypes.c_uint32),
+
+            ('EXLAT', ctypes.c_uint32),
+
+            ('RRT', ctypes.c_uint32, 5),
+            ('RSVD_2', ctypes.c_uint32, 3),
+            ('RRL', ctypes.c_uint32, 5),
+            ('RSVD_3', ctypes.c_uint32, 3),
+            ('RWT', ctypes.c_uint32, 5),
+            ('RSVD_4', ctypes.c_uint32, 3),
+            ('RWL', ctypes.c_uint32, 5),
+            ('RSVD_5', ctypes.c_uint32, 3),
+
+            ('IDLP', ctypes.c_uint32, 16),
+            ('RSVD_6', ctypes.c_uint32, 6),
+            ('IPS', ctypes.c_uint32, 2),
+            ('RSVD_7', ctypes.c_uint32, 8),
+
+            ('ACTP', ctypes.c_uint32, 16),
+            ('APW', ctypes.c_uint32, 3),
+            ('RSVD_8', ctypes.c_uint32, 3),
+            ('APS', ctypes.c_uint32, 2),
+            ('RSVD_9', ctypes.c_uint32, 8),
+
+            ('RSVD_10', ctypes.c_uint8 * 8),
+        ]
+
     _fields_ = [
         ('VID', ctypes.c_uint16),
         ('SSVID', ctypes.c_uint16),
@@ -97,10 +135,95 @@ class IdentifyControllerData(DataInCommon):
         ('RSVD_0', ctypes.c_uint8 * 9),
         ('CNTRLTYPE', ctypes.c_uint8),
         ('FGUID', ctypes.c_uint8 * 16),
-        ('TBD_0', ctypes.c_uint8 * 388),
+        ('CRDT1', ctypes.c_uint16),
+        ('CRDT2', ctypes.c_uint16),
+        ('CRDT3', ctypes.c_uint16),
+        ('RSVD_1', ctypes.c_uint8 * 119),
+        ('NVMSR', ctypes.c_uint8),
+        ('VWCI', ctypes.c_uint8),
+        ('MEC', ctypes.c_uint8),
+        ('OACS', ctypes.c_uint16),
+        ('ACL', ctypes.c_uint8),
+        ('AERL', ctypes.c_uint8),
+        ('FRMW', ctypes.c_uint8),
+        ('LPA', ctypes.c_uint8),
+        ('ELPE', ctypes.c_uint8),
+        ('NPSS', ctypes.c_uint8),
+        ('AVSCC', ctypes.c_uint8),
+        ('APSTA', ctypes.c_uint8),
+        ('WCTEMP', ctypes.c_uint16),
+        ('CCTEMP', ctypes.c_uint16),
+        ('MTFA', ctypes.c_uint16),
+        ('HMPRE', ctypes.c_uint32),
+        ('HMMIN', ctypes.c_uint32),
+        ('TNVMCAP_LO', ctypes.c_uint64),
+        ('TNVMCAP_HI', ctypes.c_uint64),
+        ('UNVMCAP_LO', ctypes.c_uint64),
+        ('UNVMCAP_HI', ctypes.c_uint64),
+        ('RPMBS', ctypes.c_uint32),
+        ('EDSTT', ctypes.c_uint16),
+        ('DSTO', ctypes.c_uint8),
+        ('FWUG', ctypes.c_uint8),
+        ('KAS', ctypes.c_uint16),
+        ('HCTMA', ctypes.c_uint16),
+        ('MNTMT', ctypes.c_uint16),
+        ('MXTMT', ctypes.c_uint16),
+        ('SANICAP', ctypes.c_uint32),
+        ('HMMINDS', ctypes.c_uint32),
+        ('HMMAXD', ctypes.c_uint16),
+        ('NSETIDMAX', ctypes.c_uint16),
+        ('ENDGIDMAX', ctypes.c_uint16),
+        ('ANATT', ctypes.c_uint8),
+        ('ANACAP', ctypes.c_uint8),
+        ('ANAGRPMAX', ctypes.c_uint32),
+        ('NANAGRPID', ctypes.c_uint32),
+        ('PELS', ctypes.c_uint32),
+        ('DOMID', ctypes.c_uint16),
+        ('RSVD_2', ctypes.c_uint8 * 10),
+        ('MEGCAP_LO', ctypes.c_uint64),
+        ('MEGCAP_HI', ctypes.c_uint64),
+        ('RSVD_3', ctypes.c_uint8 * 128),
+        ('SQES', ctypes.c_uint8),
+        ('CQES', ctypes.c_uint8),
+        ('MAXCMD', ctypes.c_uint16),
         ('NN', ctypes.c_uint32),
-        ('TBD_1', ctypes.c_uint8 * 3576),
+        ('ONCS', ctypes.c_uint16),
+        ('FUSES', ctypes.c_uint16),
+        ('FNA', ctypes.c_uint8),
+        ('VWC', ctypes.c_uint8),
+        ('AWUN', ctypes.c_uint16),
+        ('AWUPF', ctypes.c_uint16),
+        ('ICSVSCC', ctypes.c_uint8),
+        ('NWPC', ctypes.c_uint8),
+        ('ACWU', ctypes.c_uint16),
+        ('CPFMTSUP', ctypes.c_uint16),
+        ('SGLS', ctypes.c_uint32),
+        ('MNAN', ctypes.c_uint32),
+        ('MAXDNA_LO', ctypes.c_uint64),
+        ('MAXDNA_HI', ctypes.c_uint64),
+        ('MAXCNA', ctypes.c_uint32),
+        ('RSVD_4', ctypes.c_uint8 * 204),
+        ('SUBNQN', ctypes.c_char * 256),
+        ('RSVD_5', ctypes.c_uint8 * 768),
+        ('IOCCSZ', ctypes.c_uint32),
+        ('IORCSZ', ctypes.c_uint32),
+        ('ICDOFF', ctypes.c_uint16),
+        ('FCATT', ctypes.c_uint8),
+        ('MSDBD', ctypes.c_uint8),
+        ('OFCS', ctypes.c_uint16),
+        ('RSVD_6', ctypes.c_uint8 * 242),
+        ('PSDS', PowerStateDesc * 32),
+        ('VS', ctypes.c_uint8 * 1024),
     ]
+
+
+# Check size and a few offsets to make sure they match the spec
+assert ctypes.sizeof(IdentifyControllerData) == IdentifyControllerData.size
+assert IdentifyControllerData.VS.offset == 3072
+assert IdentifyControllerData.MAXCNA.offset == 560
+assert IdentifyControllerData.ONCS.offset == 520
+assert IdentifyControllerData.CCTEMP.offset == 268
+assert IdentifyControllerData.IEEE.offset == 73
 
 
 class IdentifyController(Identify):
@@ -181,7 +304,7 @@ class IdentifyNamespaceZonedData(DataInCommon):
         ('FRL3', ctypes.c_uint32),
         ('RSVD_0', ctypes.c_uint8 * 2772),
         ('LBAFE_TBL', LBAFormatExtended * 64),
-        ('RSVD_1)', ctypes.c_uint8 * 256),
+        ('RSVD_1', ctypes.c_uint8 * 256),
     ]
 
 

@@ -128,7 +128,7 @@ class NVMeRegChangeHandler:
             # Find all the queues we should look at for commands
             busy_sqs = [(sq, cq) for k, (sq, cq) in
                         self.nvsim_state.queue_mgr.nvme_queues.items() if
-                        sq.num_entries() > 0]
+                        sq is not None and sq.num_entries() > 0]
 
             # Go through all of them round robin style
             # TODO: Change this around so we drain the ADMIN queue first
@@ -141,10 +141,8 @@ class NVMeRegChangeHandler:
                     assert cq.is_full() is False, (
                         'CQ id: {} is full, asserting to debug'.format(cq.qid))
 
-                    # Get the command, check OPC != 0
+                    # Get the command
                     command = sq.get_command()
-                    assert command.OPC != 0, (
-                        'Invalid command OPC: 0x{:}'.format(command.OPC))
 
                     # Were we asked to fail the next command we got?
                     if self.fail_next_command:
