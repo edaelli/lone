@@ -81,7 +81,3 @@ class RegsStructAccess(ComparableStruct):
             data = self.__class__.from_buffer(read_data)
             value = object.__getattribute__(data, name)
             return value
-
-        # Invalid attribute
-        raise AttributeError('{} object has no attribute attribute "{}"'.format(
-                             self.__class__.__name__, name))

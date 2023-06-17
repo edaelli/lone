@@ -127,3 +127,7 @@ def test_indirect_access(mocker):
 
     # Set a new attribute to check that path
     pcie_regs.ID.test = 0
+
+    # Test an attribute that doesn't exist
+    with pytest.raises(AttributeError):
+        pcie_regs.NOT_AN_ATTR
