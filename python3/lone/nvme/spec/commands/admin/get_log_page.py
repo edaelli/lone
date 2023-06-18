@@ -337,10 +337,35 @@ GetLogPageDeviceSelfTest = GetLogPageFactory(
 assert ctypes.sizeof(GetLogPageDeviceSelfTestData) == 564
 
 
-class GetLogPageTelemetryHostInitiatedData(DataInCommon):
+class TelemetryDataBlock(DataInCommon):
     _pack_ = 1
     _fields_ = [
-        ('placeholder', ctypes.c_uint32 * 1024),
+        ('Data', ctypes.c_uint8 * 512),
+    ]
+
+
+class GetLogPageTelemetryHostInitiatedData(DataInCommon):
+    # Limit the page to 512 data blocks, which makes the
+    #  data size to around 256k. This can be bigger, just
+    #  needed a limit to create the structure here
+    max_data_blocks = 512
+
+    _pack_ = 1
+    _fields_ = [
+        ('LogIdentifier', ctypes.c_uint8),
+        ('RSVD_0', ctypes.c_uint8 * 4),
+        ('IEEE', ctypes.c_uint8 * 3),
+        ('DataArea1LastBlock', ctypes.c_uint16),
+        ('DataArea2LastBlock', ctypes.c_uint16),
+        ('DataArea3LastBlock', ctypes.c_uint16),
+        ('RSVD_1', ctypes.c_uint8 * 2),
+        ('DataArea4LastBlock', ctypes.c_uint32),
+        ('RSVD_2', ctypes.c_uint8 * 361),
+        ('HostInitDataGenerationNumber', ctypes.c_uint8),
+        ('ControllerDataAvailable', ctypes.c_uint8),
+        ('ControllerDataGenerationNumber', ctypes.c_uint8),
+        ('ReaonIdentifier', ctypes.c_uint8 * 128),
+        ('DataBlocks', TelemetryDataBlock * max_data_blocks),
     ]
 
 
@@ -348,16 +373,34 @@ GetLogPageTelemetryHostInitiated = GetLogPageFactory(
     'GetLogPageTelemetryHostInitiated',
     0x07,
     GetLogPageTelemetryHostInitiatedData)
-
+# GetLogPageTelemetryHostInitiated.LSP = 0x01 Create Telemetry host-init data
 
 # Perform some checks to make sure it matches the spec
-assert ctypes.sizeof(GetLogPageTelemetryHostInitiatedData) == 4096
+assert (ctypes.sizeof(GetLogPageTelemetryHostInitiatedData) ==
+       (GetLogPageTelemetryHostInitiatedData.max_data_blocks * 512) + 512)
 
 
 class GetLogPageTelemetryControllerInitiatedData(DataInCommon):
+    # Limit the page to 512 data blocks, which makes the
+    #  data size to around 256k. This can be bigger, just
+    #  needed a limit to create the structure here
+    max_data_blocks = 512
+
     _pack_ = 1
     _fields_ = [
-        ('placeholder', ctypes.c_uint8 * 4096),
+        ('LogIdentifier', ctypes.c_uint8),
+        ('RSVD_0', ctypes.c_uint8 * 4),
+        ('IEEE', ctypes.c_uint8 * 3),
+        ('DataArea1LastBlock', ctypes.c_uint16),
+        ('DataArea2LastBlock', ctypes.c_uint16),
+        ('DataArea3LastBlock', ctypes.c_uint16),
+        ('RSVD_1', ctypes.c_uint8 * 2),
+        ('DataArea4LastBlock', ctypes.c_uint32),
+        ('RSVD_2', ctypes.c_uint8 * 362),
+        ('ControllerDataAvailable', ctypes.c_uint8),
+        ('ControllerDataGenerationNumber', ctypes.c_uint8),
+        ('ReaonIdentifier', ctypes.c_uint8 * 128),
+        ('DataBlocks', TelemetryDataBlock * max_data_blocks),
     ]
 
 
@@ -367,13 +410,60 @@ GetLogPageTelemetryControllerInitiated = GetLogPageFactory(
     GetLogPageTelemetryControllerInitiatedData)
 
 # Perform some checks to make sure it matches the spec
-assert ctypes.sizeof(GetLogPageTelemetryControllerInitiatedData) == 4096
+assert (ctypes.sizeof(GetLogPageTelemetryControllerInitiatedData) ==
+       (GetLogPageTelemetryControllerInitiatedData.max_data_blocks * 512) + 512)
 
 
 class GetLogPageEnduranceGroupInformationData(DataInCommon):
+
+    class CriticalWarning(DataInCommon):
+        _pack_ = 1
+        _fields_ = [
+            ('AvailableSpareCapLow', ctypes.c_uint8, 1),
+            ('RSVD_0', ctypes.c_uint8, 1),
+            ('ReliabilityDegraded', ctypes.c_uint8, 1),
+            ('AllReadOnly', ctypes.c_uint8, 1),
+            ('RSVD_1', ctypes.c_uint8, 4),
+        ]
+
+    class EnduranceGroupFeatures(DataInCommon):
+        _pack_ = 1
+        _fields_ = [
+            ('EGRMEDIA', ctypes.c_uint8, 1),
+            ('RSVD_0', ctypes.c_uint8, 7),
+        ]
+
     _pack_ = 1
     _fields_ = [
-        ('placeholder', ctypes.c_uint8 * 4096),
+        ('CriticalWarning', CriticalWarning),
+        ('EGFEAT', EnduranceGroupFeatures),
+        ('RSVD_0', ctypes.c_uint8),
+        ('AvailableSpare', ctypes.c_uint8),
+        ('AvailableSpareThreshold', ctypes.c_uint8),
+        ('PercentageUsed', ctypes.c_uint8),
+        ('DomainIdentifier', ctypes.c_uint16),
+        ('RSVD_1', ctypes.c_uint8 * 24),
+        ('EnduranceEstimateLo', ctypes.c_uint64),
+        ('EnduranceEstimateHi', ctypes.c_uint64),
+        ('DataUnitsReadLo', ctypes.c_uint64),
+        ('DataUnitsReadHi', ctypes.c_uint64),
+        ('DataUnitsWrittenLo', ctypes.c_uint64),
+        ('DataUnitsWrittenHi', ctypes.c_uint64),
+        ('MediaUnitsWrittenLo', ctypes.c_uint64),
+        ('MediaUnitsWrittenHi', ctypes.c_uint64),
+        ('HostReadCommandsLo', ctypes.c_uint64),
+        ('HostReadCommandsHi', ctypes.c_uint64),
+        ('HostWriteCommandsLo', ctypes.c_uint64),
+        ('HostWriteCommandsHi', ctypes.c_uint64),
+        ('MediaAndDataIntegrityErrorsLo', ctypes.c_uint64),
+        ('MediaAndDataIntegrityErrorsHi', ctypes.c_uint64),
+        ('NumberofErrorInformationLogEntriesLo', ctypes.c_uint64),
+        ('NumberofErrorInformationLogEntriesHi', ctypes.c_uint64),
+        ('TEGCAP_LO', ctypes.c_uint64),
+        ('TEGCAP_HI', ctypes.c_uint64),
+        ('UEGCAP_LO', ctypes.c_uint64),
+        ('UEGCAP_HI', ctypes.c_uint64),
+        ('RSVD_2', ctypes.c_uint8 * 320),
     ]
 
 
@@ -383,13 +473,39 @@ GetLogPageEnduranceGroupInformation = GetLogPageFactory(
     GetLogPageEnduranceGroupInformationData)
 
 # Perform some checks to make sure it matches the spec
-assert ctypes.sizeof(GetLogPageEnduranceGroupInformationData) == 4096
+assert ctypes.sizeof(GetLogPageEnduranceGroupInformationData) == 512
 
 
 class GetLogPagePredictableLatencyPerNVMSetData(DataInCommon):
+
+    class Status(enum.Enum):
+        NOT_USED = 0
+        DTWIN = 1
+        NDWIN = 2
+
+    class EventType(enum.Enum):
+        DTWIN_READS_WARNING = 0
+        DTWIN_WRITES_WARNING = 1
+        DTWIN_TIME_WARNING = 2
+        AUTO_TRANSITION_DTWIN_TO_NDWIN_TYP_OR_MAX = 14
+        AUTO_TRANSITION_DTWIN_TO_NDWIN_DETERMINISTIC_EXCURSION = 15
+
     _pack_ = 1
     _fields_ = [
-        ('placeholder', ctypes.c_uint8 * 4096),
+        ('Status', ctypes.c_uint8),
+        ('RSVD_0', ctypes.c_uint8),
+        ('EventType', ctypes.c_uint16),
+        ('RSVD_1', ctypes.c_uint8 * 28),
+        ('DTWIN_ReadsTypical', ctypes.c_uint64),
+        ('DTWIN_WritesTypical', ctypes.c_uint64),
+        ('DTWIN_TimeMax', ctypes.c_uint64),
+        ('NDWIN_TimeMinHi', ctypes.c_uint64),
+        ('NDWIN_TimeMinLo', ctypes.c_uint64),
+        ('RSVD_2', ctypes.c_uint8 * 56),
+        ('DTWIN_ReadsEstimate', ctypes.c_uint64),
+        ('DTWIN_WritesEstimate', ctypes.c_uint64),
+        ('DTWIN_TimeEstimate', ctypes.c_uint64),
+        ('RSVD_3', ctypes.c_uint8 * 360),
     ]
 
 
@@ -399,13 +515,16 @@ GetLogPagePredictableLatencyPerNVMSet = GetLogPageFactory(
     GetLogPagePredictableLatencyPerNVMSetData)
 
 # Perform some checks to make sure it matches the spec
-assert ctypes.sizeof(GetLogPagePredictableLatencyPerNVMSetData) == 4096
+assert ctypes.sizeof(GetLogPagePredictableLatencyPerNVMSetData) == 512
 
 
 class GetLogPagePredictableLatencyEventAggregateData(DataInCommon):
+    max_entries = 256
+
     _pack_ = 1
     _fields_ = [
-        ('placeholder', ctypes.c_uint8 * 4096),
+        ('NumberOfEntries', ctypes.c_uint64),
+        ('Entries', ctypes.c_uint16 * max_entries),
     ]
 
 
@@ -415,7 +534,8 @@ GetLogPagePredictableLatencyEventAggregate = GetLogPageFactory(
     GetLogPagePredictableLatencyEventAggregateData)
 
 # Perform some checks to make sure it matches the spec
-assert ctypes.sizeof(GetLogPagePredictableLatencyEventAggregateData) == 4096
+assert (ctypes.sizeof(GetLogPagePredictableLatencyEventAggregateData) ==
+       (8 + (GetLogPagePredictableLatencyEventAggregateData.max_entries * 2)))
 
 
 class GetLogPageAsymetricNamespaceAccessData(DataInCommon):
