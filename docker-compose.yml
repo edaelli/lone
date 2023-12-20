@@ -21,7 +21,11 @@ services:
 
     # Expose vfio container device
     devices:
-        - /dev/vfio:/dev/vfio
+      - /dev/vfio:/dev/vfio
+
+    # Volumes
+    volumes:
+      - /:/local_fs
 
     # Expose syslog so user can call dmesg
     cap_add:
