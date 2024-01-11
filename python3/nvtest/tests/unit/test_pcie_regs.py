@@ -65,7 +65,7 @@ def check_registers(pcie_regs):
     # Test capabilities on each type of registers. Only minimal testing, more
     #  complete testing in another function
     pcie_regs.CAP.CP = 0x40
-    pcie_regs.RSVD_CAP[0] = 0
+    pcie_regs.CAPS.DATA[0] = 0
     pcie_regs.init_capabilities()
 
 
@@ -85,11 +85,11 @@ def test_cap():
 
     # Create a PCICapPowerManagementInterface capability and test it out
     pcie_regs.CAP.CP = 0x40
-    cap = PCICapPowerManagementInterface.from_address(ctypes.addressof(pcie_regs.RSVD_CAP))
-    cap.CAP_ID = PCICapPowerManagementInterface.cap_id
+    cap = PCICapPowerManagementInterface(pcie_regs, 0)
+    cap.CAP_ID = PCICapPowerManagementInterface(pcie_regs, 0)._cap_id_
     cap.NEXT_PTR = 0x00
-    cap.PC = PCICapPowerManagementInterface.Pc(0x00)
-    cap.PMCS = PCICapPowerManagementInterface.Pmcs(0x00)
+    cap.PC = PCICapPowerManagementInterface(pcie_regs, 0).Pc(0x00)
+    cap.PMCS = PCICapPowerManagementInterface(pcie_regs, 0).Pmcs(0x00)
     cap.pointer = 0x40
     cap.log()
 
@@ -112,7 +112,7 @@ def test_indirect_access(mocker):
     assert pcie_regs._fields_ is not None
 
     # Test that getting an attribute results in the right type
-    assert type(pcie_regs.ID) == Registers.Id
+    assert type(pcie_regs.ID) is Registers.Id
 
     # Tests that setting default values works
     test_data = [0] * 4096

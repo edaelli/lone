@@ -166,7 +166,7 @@ class SysVfioIfc(SysPciUserspaceDevice):
                  init=True,
                  pci_vid=None, pci_did=None,
                  driver=None, owner=None, info_string=None):
-        assert type(pci_slot) == str, 'pci_slot type must be string!'
+        assert type(pci_slot) is str, 'pci_slot type must be string!'
 
         super().__init__(pci_slot, pci_vid, pci_did, driver, owner, info_string)
 

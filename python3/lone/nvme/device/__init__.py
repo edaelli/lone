@@ -342,7 +342,7 @@ class NVMeDeviceCommon:
         if cqids is None:
             cqids = self.queue_mgr.all_cqids
         else:
-            if type(cqids) == int:
+            if type(cqids) is int:
                 cqids = [cqids]
 
         max_time = time.time() + max_time_s

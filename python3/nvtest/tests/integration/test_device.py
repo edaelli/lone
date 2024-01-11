@@ -46,7 +46,7 @@ def test_device_init(nvme_device):
     assert hasattr(nvme_device, 'cid_mgr')
     assert hasattr(nvme_device, 'queue_mgr')
     assert hasattr(nvme_device, 'mps')
-    assert type(nvme_device.mps) == int
+    assert type(nvme_device.mps) is int
     assert hasattr(nvme_device, 'outstanding_commands')
     assert hasattr(nvme_device, 'injectors')
 

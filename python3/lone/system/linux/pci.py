@@ -41,7 +41,7 @@ class LinuxSysPciDevice(SysPciDevice):
         self._unbind_current_driver()
 
         self.exposed_device_path = self._create_device()
-        if type(user) == str:
+        if type(user) is str:
             if user.isnumeric():
                 user = int(user)
 
@@ -106,9 +106,9 @@ class LinuxSysPciDevice(SysPciDevice):
         return device_path
 
     def _change_device_ownership(self, device_path, user):
-        if type(user) == str:
+        if type(user) is str:
             user_info = pwd.getpwnam(user)
-        elif type(user) == int:
+        elif type(user) is int:
             user_info = pwd.getpwuid(user)
         else:
             raise Exception('Wrong user type: {}'.format(type(user)))
