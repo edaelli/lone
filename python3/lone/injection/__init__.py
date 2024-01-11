@@ -37,7 +37,7 @@ class Injection:
             injector_type is a string for the type of injector to look for. This makes it
             convinient to identify injectors without having them defined everywhere
         '''
-        assert type(injector_type) == str, "injector_type must be a string"
+        assert type(injector_type) is str, "injector_type must be a string"
         injectors = [i for i in self.injectors if i.__class__.__name__ == injector_type]
         if len(injectors) == 0:
             # Not found, return None

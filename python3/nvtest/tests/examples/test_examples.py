@@ -34,7 +34,7 @@ def test_nvme_device_raw(nvme_device_raw):
     assert issubclass(type(nvme_device_raw.pcie_regs), PCIeRegisters)
 
     from lone.nvme.spec.registers.nvme_regs import NVMeRegistersDirect
-    assert type(nvme_device_raw.nvme_regs) == NVMeRegistersDirect
+    assert type(nvme_device_raw.nvme_regs) is NVMeRegistersDirect
 
     # Check a couple of values in pcie and nvme for demonstration
 
@@ -45,7 +45,7 @@ def test_nvme_device_raw(nvme_device_raw):
     # Make sure that NVMe VS is not zero
     assert nvme_device_raw.nvme_regs.VS.MJR != 0
     assert nvme_device_raw.nvme_regs.VS.MNR != 0
-    assert type(nvme_device_raw.nvme_regs.VS.__str__) == str
+    assert type(nvme_device_raw.nvme_regs.VS.__str__) is str
 
     # Disable the device, setup admin queues, re-enable it
     nvme_device_raw.cc_disable()

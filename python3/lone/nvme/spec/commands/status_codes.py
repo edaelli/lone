@@ -88,7 +88,7 @@ class NVMeStatusCodes:
         self.add(NVMeStatusCode(0x89, 'Key Exists')),
 
     def add(self, codes):
-        if type(codes) != list:
+        if type(codes) is not list:
             codes = [codes]
 
         for code in codes:
@@ -122,14 +122,14 @@ class NVMeStatusCodes:
 
     def __getitem__(self, key):
 
-        if type(key) == tuple:
+        if type(key) is tuple:
             key, cmd_type = key
         else:
             cmd_type = Generic
 
-        if type(key) == int:
+        if type(key) is int:
             return self.__codes[(key, cmd_type)]
-        elif type(key) == str:
+        elif type(key) is str:
             c = [v for k, v in self.__codes.items() if v.name == key and v.cmd_type == cmd_type]
             if len(c):
                 return c[0]

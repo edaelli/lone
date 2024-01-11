@@ -228,6 +228,14 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = 0x3F
 
+        class Caps(RegsStructAccess):
+            _pack_ = 1
+            _fields_ = [
+                ('DATA', ctypes.c_uint8 * 4032),
+            ]
+            _access_ = access_data
+            _base_offset_ = 0x40
+
         ''' PCIe registers from the NVMe specification
         '''
         _pack_ = 1
@@ -256,10 +264,7 @@ def pcie_reg_struct_factory(access_data):
             ('INTR', Intr),
             ('MGNT', Mgnt),
             ('MLAT', Mlat),
-
-            # The rest of the space is for capabilities, and
-            # extended capabilities
-            ('RSVD_CAP', ctypes.c_uint8 * 4032),
+            ('CAPS', Caps),
         ]
         _access_ = access_data
         _base_offset_ = 0x00
@@ -272,46 +277,38 @@ class PCIeRegisters:
     def init_capabilities(self):
         self.capabilities = []
 
-        # Make a copy of the capabilities data to loop through
-        cap_data = bytearray([0] * ctypes.sizeof(self))
-        for i, r in enumerate(self.RSVD_CAP, start=type(self).RSVD_CAP.offset):
-            cap_data[i] = r
+        # Get the pointer to the first capability and walk the list saving each in
+        #  the self.capabilities list
+        next_cap_ptr = self.CAP.CP
+        while next_cap_ptr:
+            # Create a generic capability object to figure out its type
+            cap_gen = PCICapabilityGen(self, next_cap_ptr)
+            cap_obj = PCICapabilityIdTable.ids[cap_gen.CAP_ID]
+            # if cap_obj == PCICapabilityGen:
+            # print('Unknown Capability ID: 0x{:02x}'.format(cap_gen.CAP_ID))
 
-        # Walk regular and extended capabilities
-        for next_cap_ptr in [self.CAP.CP, 0x100]:
+            # Now that we know the type, create the real object and add to the array
+            capability = cap_obj(self, next_cap_ptr)
+            self.capabilities.append(capability)
 
-            # Are we going over exteneded capabilities?
-            if next_cap_ptr == 0x100:
-                extended = True
-            else:
-                extended = False
+            # Advance next pointer
+            next_cap_ptr = capability.NEXT_PTR
 
-            while next_cap_ptr:
-                # For each capability create a cap object and add to our list
-                b = cap_data[next_cap_ptr:next_cap_ptr + 4]
+        # Same thing for extended capabilities
+        next_cap_ptr = 0x100
+        while next_cap_ptr:
+            # Create a generic capability object to figure out its type
+            cap_gen = PCICapabilityGen(self, next_cap_ptr)
+            cap_obj = PCICapabilityExtendedIdTable.ids[cap_gen.CAP_ID]
+            # if cap_obj == PCICapabilityGenExtended:
+            # print('Unknown Extended Capability ID: 0x{:02x}'.format(cap_gen.CAP_ID))
 
-                cap = PCICapabilityGen.from_buffer_copy(b)
+            # Now that we know the type, create the real object and add to the array
+            capability = cap_obj(self, next_cap_ptr)
+            self.capabilities.append(capability)
 
-                # Figure out what capability this is
-                if extended:
-                    cap_obj = PCICapabilityExtendedIdTable.ids[cap.CAP_ID]
-                else:
-                    cap_obj = PCICapabilityIdTable.ids[cap.CAP_ID]
-
-                # Now go read it and create the capabilities object
-                size_bytes = ctypes.sizeof(cap_obj)
-                data = bytearray()
-                for i in range(size_bytes):
-                    data += cap_data[next_cap_ptr + i].to_bytes(1, 'big')
-
-                cap = cap_obj.from_buffer_copy(data)
-
-                # Add it to our list and log it
-                self.capabilities.append(cap)
-                # cap.log()
-
-                # Advance to the next one
-                next_cap_ptr = cap.NEXT_PTR
+            # Advance next pointer
+            next_cap_ptr = capability.NEXT_PTR
 
     def log(self):
         log = logging.getLogger('pcie_regs')
@@ -326,6 +323,40 @@ class PCIeRegistersDirect(pcie_reg_struct_factory(PCIeAccessData(None, None)), P
 
 
 class PCICapability(ctypes.Structure):
+    def __init__(self, registers, offset):
+        self.registers = registers
+        self.offset = offset
+
+    def read_bytes(self):
+        start_byte = self.offset - type(self.registers).CAPS.offset
+        end_byte = start_byte + ctypes.sizeof(self)
+        cap_bytes = bytearray(self.registers.CAPS.DATA[start_byte:end_byte])
+
+        class CapStructure(ctypes.Structure):
+            _fields_ = self._fields_
+
+        cap_copy = CapStructure.from_buffer(cap_bytes)
+        return cap_copy
+
+    def __getattribute__(self, name):
+        if name in [f[0] for f in object.__getattribute__(self, '_fields_')]:
+            cap = self.read_bytes()
+            return getattr(cap, name)
+        else:
+            return object.__getattribute__(self, name)
+
+    def __setattr__(self, name, value):
+        if name in [f[0] for f in object.__getattribute__(self, '_fields_')]:
+            write_bytes = bytes(value)
+            byte_offset = getattr(type(self), name).offset
+            start_byte = self.offset - type(self.registers).CAPS.offset + byte_offset
+            data = self.registers.CAPS.DATA
+            for i in range(len(write_bytes)):
+                data[start_byte + i] = write_bytes[i]
+            self.registers.CAPS.DATA = data
+
+        else:
+            return object.__setattr__(self, name, value)
 
     def log(self):
         log = logging.getLogger('capability')
@@ -350,7 +381,7 @@ class PCICapabilityGen(PCICapability):
 
 
 class PCICapPowerManagementInterface(PCICapability):
-    cap_id = 0x1
+    _cap_id_ = 0x1
 
     class Pc(ctypes.Structure):
         _pack_ = 1
@@ -388,7 +419,7 @@ class PCICapPowerManagementInterface(PCICapability):
 
 
 class PCICapMSI(PCICapability):
-    cap_id = 0x05
+    _cap_id_ = 0x05
 
     class Mc(ctypes.Structure):
         _pack_ = 1
@@ -446,7 +477,7 @@ class PCICapMSI(PCICapability):
 
 
 class PCICapMSIX(PCICapability):
-    cap_id = 0x11
+    _cap_id_ = 0x11
 
     class Mxc(ctypes.Structure):
         _pack_ = 1
@@ -482,7 +513,7 @@ class PCICapMSIX(PCICapability):
 
 
 class PCICapExpress(PCICapability):
-    cap_id = 0x10
+    _cap_id_ = 0x10
 
     class Pxcap(ctypes.Structure):
         _pack_ = 1
@@ -648,7 +679,7 @@ class PCICapabilityGenExtended(PCICapability):
 
 
 class PCICapExtendedAer(PCICapability):
-    cap_id = 0x1
+    _cap_id_ = 0x1
 
     class Aeruces(ctypes.Structure):
         _pack_ = 1
@@ -824,7 +855,7 @@ class PCICapExtendedAer(PCICapability):
 
 
 class PCICapExtendeDeviceSerialNumber(PCICapability):
-    cap_id = 0x3
+    _cap_id_ = 0x3
 
     _pack_ = 1
     _fields_ = [

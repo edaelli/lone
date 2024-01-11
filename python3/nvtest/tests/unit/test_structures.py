@@ -30,12 +30,12 @@ def test_sqe_common():
     class SQEWithDataIn(SQECommon):
         data_in_type = DataInCommon
     sqe = SQEWithDataIn()
-    assert type(sqe.data_in) == DataInCommon
+    assert type(sqe.data_in) is DataInCommon
 
     class SQEWithDataOut(SQECommon):
         data_out_type = DataOutCommon
     sqe = SQEWithDataOut()
-    assert type(sqe.data_out) == DataOutCommon
+    assert type(sqe.data_out) is DataOutCommon
 
 
 def test_dump():

@@ -25,7 +25,7 @@ class DataDumper:
                     # Do not print if the field includes any of the strings in noprint
                     if not any(f in field for f in noprint):
                         field_attr = '.'.join(field.split('.')[1:])
-                        if type(value) == int:
+                        if type(value) is int:
                             fmt = '{}=0x{:x}'
                         else:
                             fmt = '{}={}'
