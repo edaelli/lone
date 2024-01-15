@@ -87,7 +87,8 @@ class NVMeSubmissionQueue(NVMeQueue):
 
 
 class NVMeCompletionQueue(NVMeQueue):
-    def __init__(self, base_address, entries, entry_size, qid, dbh_addr):
+    def __init__(self, base_address, entries, entry_size, qid, dbh_addr, int_vector=None):
+        self.int_vector = int_vector  # None means pooling, integer means msix
         self.dbt_addr_obj = ctypes.c_uint32(0)
         dbt_addr = ctypes.addressof(self.dbt_addr_obj)
         super().__init__(base_address, entries, entry_size, qid, dbh_addr, dbt_addr)
@@ -147,9 +148,23 @@ class QueueMgr:
             if sqid == rem_sqid:
                 self.nvme_queues[(sqid, cqid)] = (None, cq)
 
+    def get_cqs(self):
+        cqs = []
+        for k, v in self.nvme_queues.items():
+            cqs.append(v[1])
+        return cqs
+
     @property
     def all_cqids(self):
         return [0] + self.io_cqids
+
+    @property
+    def all_cq_vectors(self):
+        vectors = []
+        for k, v in self.nvme_queues.items():
+            cq = v[1]
+            vectors.append(cq.int_vector)
+        return vectors
 
     def get(self, sqid=None, cqid=None):
         sq = None

@@ -4,7 +4,6 @@ import time
 
 # lone imports
 from lone.nvme.device import NVMeDevice
-from lone.nvme.spec.registers.pcie_regs import PCICapExpress
 
 
 def main():
@@ -23,11 +22,7 @@ def main():
 
     # Get the PCIeExpress capability to set the "Initiate FLR" bit
     pcie_cap = [cap for cap in nvme_device.pcie_regs.capabilities if
-                type(cap) is PCICapExpress][0]
-
-    # Read PXDC and change the IFLR value
-    pxdc = pcie_cap.PXDC
-    pxdc.IFLR = 1
+                cap._cap_id_ is nvme_device.pcie_regs.PCICapExpress._cap_id_][0]
 
     assert nvme_device.nvme_regs.CC.EN == 1, "Device not enabled before FLR"
     print('Initiating FLR on slot: {} SN: {} MN: {} FR: {}'.format(
@@ -35,7 +30,7 @@ def main():
         identify_controller_data.SN,
         identify_controller_data.MN,
         identify_controller_data.FR))
-    pcie_cap.PXDC = pxdc
+    pcie_cap.PXDC.IFLR = 1
     time.sleep(0.2)
     assert nvme_device.nvme_regs.CC.EN == 0, "Device not disabled after FLR"
 

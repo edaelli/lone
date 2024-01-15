@@ -44,6 +44,7 @@ def initialize_device(pci_slot, queue_depth):
     nvme_device.cc_disable()
     nvme_device.init_admin_queues(asq_entries=asq_depth, acq_entries=acq_depth)
     nvme_device.cc_enable()
+    nvme_device.init_msix_interrupts(num_io_queues + 1, 0)
     nvme_device.init_io_queues(num_io_queues, io_queue_depth)
     nvme_device.identify()
 
@@ -164,19 +165,6 @@ async def print_stats(period_s, statistics, wr_cmds):
             break
 
 
-async def complete_commands(nvme_device, statistics):
-
-    while True:
-        try:
-            completions = nvme_device.process_completions()
-            if completions == 0:
-                await asyncio.sleep(0.0000001)
-
-        except asyncio.CancelledError:
-            # logger.info('complete_commands was cancelled, exiting')
-            break
-
-
 async def seq_write(nvme_device, wr_cmds, slba, nsze, statistics):
 
     # Increment the SLBA squentially
@@ -187,36 +175,29 @@ async def seq_write(nvme_device, wr_cmds, slba, nsze, statistics):
     # Keep sending writes to the drive until we have sent the last one
     while True:
         try:
-            # Find all available commands
-            available_cmds = [cmd for cmd in wr_cmds if (cmd.posted is False and
-                                                         cmd.complete is False)]
-
             # Post all available commands
             started_cmds = 0
-            for wr_cmd in available_cmds:
+            for wr_cmd in [cmd for cmd in wr_cmds if (cmd.posted is False and
+                                                      cmd.complete is False)]:
                 # Stop sending commands at nsze - nlb
                 if (lba + wr_cmd.NLB + 1) <= nsze:
                     wr_cmd.SLBA = lba
                     nvme_device.start_cmd(wr_cmd, alloc_mem=False)
                     started_cmds += 1
                     lba += (wr_cmd.NLB + 1)
-                    await asyncio.sleep(0)
                 else:
                     last_lba_started = True
                     break
 
-            # There are no guarantees on the order we get completions from the device. Therefore
-            #  to guarantee a purely sequential workload to the device, we have to wait for all
-            #  outstanding commands (in queue_depth) to complete before moving forward.
-            complete_cmds = []
-            while len(complete_cmds) != started_cmds:
-                complete_cmds = [cmd for cmd in wr_cmds if (cmd.posted is False and
-                                                            cmd.complete is True)]
-                await asyncio.sleep(0)
+            # Complete all commands that are wating for completion
+            nvme_device.process_completions()
 
-            # Check status, complete commands
-            for wr_cmd in complete_cmds:
+            # Check status of all completed commands
+            for wr_cmd in [cmd for cmd in wr_cmds if (cmd.posted is False and
+                                                      cmd.complete is True)]:
                 status_codes.check(wr_cmd)
+
+                # Mark this write command as not complete anymore since we will reuse it
                 wr_cmd.complete = False
 
                 # Update statistics
@@ -277,10 +258,6 @@ async def full_seq_write(args):
                                  last_written_lba=args.slba,
                                  lba_ds_bytes=namespace.lba_ds_bytes)
 
-    # Co-routine that checks for completions for all wr_cmds
-    complete_commands_task = asyncio.create_task(complete_commands(nvme_device, statistics))
-    complete_commands_task.set_name('complete_commands')
-
     # Co-routine to print statistics every 5s
     print_stats_task = asyncio.create_task(print_stats(5, statistics, wr_cmds))
     print_stats_task.set_name('print_stats')
@@ -301,8 +278,7 @@ async def full_seq_write(args):
     # Ok, now wait for it all to complete!
     task = asyncio.current_task()
     task.set_name('main')
-    await asyncio.wait_for(asyncio.gather(complete_commands_task,
-                                          print_stats_task,
+    await asyncio.wait_for(asyncio.gather(print_stats_task,
                                           write_seq),
                            args.timeout_s)
 

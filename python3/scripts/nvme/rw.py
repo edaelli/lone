@@ -71,6 +71,7 @@ def main():
     slba = args.slba
     for i in range(args.num_cmds):
         write_cmd.SLBA = slba
+        write_cmd.complete = False
         nvme_device.sync_cmd(write_cmd, alloc_mem=False, timeout_s=1)
         slba += num_blocks
 
@@ -91,6 +92,7 @@ def main():
 
         # Update SLBA
         read_cmd.SLBA = slba
+        read_cmd.complete = False
         nvme_device.sync_cmd(read_cmd, alloc_mem=False, timeout_s=1)
 
         # Increment SLBA to the next one
