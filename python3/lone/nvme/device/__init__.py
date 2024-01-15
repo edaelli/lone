@@ -1,5 +1,6 @@
 import ctypes
 import time
+import enum
 
 from types import SimpleNamespace
 
@@ -20,6 +21,13 @@ from lone.nvme.spec.commands.status_codes import status_codes, NVMeStatusCodeExc
 
 import logging
 logger = logging.getLogger('nvme_device')
+
+
+class NVMeDeviceIntType(enum.Enum):
+    POLLING = 0
+    INTX = 1
+    MSI = 2
+    MSIX = 3
 
 
 class NVMeDeviceCommon:
@@ -56,10 +64,14 @@ class NVMeDeviceCommon:
         self.queue_mgr = QueueMgr()
 
         # List of outstanding commands
-        self.outstanding_commands = []
+        self.outstanding_commands = {}
 
         # Injectors
         self.injectors = Injection()
+
+        # Interrupt type for this drive, None is polling
+        self.int_type = NVMeDeviceIntType.POLLING
+        self.get_completions = self.poll_cq_completions
 
     def cc_disable(self, timeout_s=10):
         start_time = time.time()
@@ -133,7 +145,69 @@ class NVMeDeviceCommon:
                            acq_entries,
                            NVMeDeviceCommon.cq_entry_size,
                            0,
-                           ctypes.addressof(self.nvme_regs.SQNDBS[0]) + 4))
+                           ctypes.addressof(self.nvme_regs.SQNDBS[0]) + 4,
+                           0))
+
+    def create_io_queue_pair(self,
+            cq_entries, cq_id, cq_iv, cq_ien, cq_pc,
+            sq_entries, sq_id, sq_prio, sq_pc, sq_setid):
+
+        # Allocate memory for the completion queue, and map with for write with the iommu
+        cq_mem = self.malloc_and_map_iova(NVMeDeviceCommon.cq_entry_size * cq_entries,
+                                          DMADirection.DEVICE_TO_HOST,
+                                          client='iocq_{}'.format(cq_id))
+
+        # Create the CreateIOCompletionQueue command
+        create_iocq_cmd = CreateIOCompletionQueue()
+        create_iocq_cmd.DPTR.PRP.PRP1 = cq_mem.iova
+        create_iocq_cmd.QSIZE = cq_entries - 1  # zero-based value
+        create_iocq_cmd.QID = cq_id
+        create_iocq_cmd.IEN = cq_ien
+        create_iocq_cmd.PC = cq_pc
+
+        if self.int_type == NVMeDeviceIntType.MSIX:
+            assert cq_iv <= self.num_msix_vectors, 'Invalid Interrupt requested: {}, num_msix_vectors: {}'.format(
+                    cq_iv, self.num_msix_vectors)
+            create_iocq_cmd.IV = cq_iv
+        else:
+            create_iocq_cmd.IV = 0
+
+        # Send the command and wait for a completion
+        self.sync_cmd(create_iocq_cmd)
+
+        # Allocate memory for the submission queue, and map with for read with the iommu
+        sq_mem = self.malloc_and_map_iova(NVMeDeviceCommon.sq_entry_size * sq_entries,
+                                          DMADirection.HOST_TO_DEVICE,
+                                          client='iosq_{}'.format(sq_id))
+
+        # Create the CreateIOSubmissionQueue command
+        create_iosq_cmd = CreateIOSubmissionQueue()
+        create_iosq_cmd.DPTR.PRP.PRP1 = sq_mem.iova
+        create_iosq_cmd.QSIZE = sq_entries - 1  # zero-based value
+        create_iosq_cmd.QID = sq_id
+        create_iosq_cmd.CQID = cq_id
+        create_iosq_cmd.QPRIO = sq_prio
+        create_iosq_cmd.PC = sq_pc
+        create_iosq_cmd.NVMSETID = sq_setid
+
+        # Send the command and wait for a completion
+        self.sync_cmd(create_iosq_cmd, timeout_s=1)
+
+        # Add the NVM queue pair to the queue manager
+        self.queue_mgr.add(NVMeSubmissionQueue(
+                           sq_mem,
+                           sq_entries,
+                           NVMeDeviceCommon.sq_entry_size,
+                           sq_id,
+                           ctypes.addressof(self.nvme_regs.SQNDBS[0]) + (sq_id * 8)),
+                           NVMeCompletionQueue(
+                           cq_mem,
+                           cq_entries,
+                           NVMeDeviceCommon.cq_entry_size,
+                           cq_id,
+                           ctypes.addressof(self.nvme_regs.SQNDBS[0]) + ((cq_id * 8) + 4),
+                           cq_iv),
+                           )
 
     def init_io_queues(self, num_queues=10, queue_entries=256, sq_nvme_set_id=0):
 
@@ -145,55 +219,9 @@ class NVMeDeviceCommon:
 
         # Create each queue requested
         for queue_id in range(1, num_queues + 1):
-
-            # Allocate memory for the completion queue, and map with for write with the iommu
-            compl_q_mem = self.malloc_and_map_iova(NVMeDeviceCommon.cq_entry_size * queue_entries,
-                                                   DMADirection.DEVICE_TO_HOST,
-                                                   client='iocq_{}'.format(queue_id))
-
-            # Create the CreateIOCompletionQueue command
-            create_iocq_cmd = CreateIOCompletionQueue()
-            create_iocq_cmd.DPTR.PRP.PRP1 = compl_q_mem.iova
-            create_iocq_cmd.QSIZE = queue_entries - 1  # zero-based value
-            create_iocq_cmd.QID = queue_id
-            create_iocq_cmd.IV = 0  # Interrupts are for suckers
-            create_iocq_cmd.IEN = 0  # Interrupts are for suckers
-            create_iocq_cmd.PC = 1
-
-            # Send the command and wait for a completion
-            self.sync_cmd(create_iocq_cmd)
-
-            # Allocate memory for the submission queue, and map with for read with the iommu
-            sub_q_mem = self.malloc_and_map_iova(NVMeDeviceCommon.sq_entry_size * queue_entries,
-                                                 DMADirection.HOST_TO_DEVICE,
-                                                 client='iosq_{}'.format(queue_id))
-
-            # Create the command
-            create_iosq_cmd = CreateIOSubmissionQueue()
-            create_iosq_cmd.DPTR.PRP.PRP1 = sub_q_mem.iova
-            create_iosq_cmd.QSIZE = queue_entries - 1  # zero-based value
-            create_iosq_cmd.QID = queue_id
-            create_iosq_cmd.CQID = queue_id
-            create_iosq_cmd.QPRIO = 0
-            create_iosq_cmd.PC = 1
-            create_iosq_cmd.NVMSETID = sq_nvme_set_id
-
-            # Send the command and wait for a completion
-            self.sync_cmd(create_iosq_cmd, timeout_s=1)
-
-            # Add the NVM queue pair
-            self.queue_mgr.add(NVMeSubmissionQueue(
-                               sub_q_mem,
-                               queue_entries,
-                               NVMeDeviceCommon.sq_entry_size,
-                               queue_id,
-                               ctypes.addressof(self.nvme_regs.SQNDBS[0]) + (queue_id * 8)),
-                               NVMeCompletionQueue(
-                               compl_q_mem,
-                               queue_entries,
-                               NVMeDeviceCommon.cq_entry_size,
-                               queue_id,
-                               ctypes.addressof(self.nvme_regs.SQNDBS[0]) + ((queue_id * 8) + 4)))
+            self.create_io_queue_pair(
+                queue_entries, queue_id, queue_id, 1, 1,
+                queue_entries, queue_id, 0, 1, 0)
 
     def free_io_queues(self):
 
@@ -333,14 +361,14 @@ class NVMeDeviceCommon:
         command.sq.post_command(command)
 
         # Keep track of outstanding commands
-        self.outstanding_commands.append(command)
+        self.outstanding_commands[(command.CID, command.sq.qid)] = command
 
         command.start_time_ns = time.perf_counter_ns()
 
-    def process_completions(self, cqids=None, max_completions=1, max_time_s=0):
+    def poll_cq_completions(self, cqids=None, max_completions=1, max_time_s=0):
 
         if cqids is None:
-            cqids = self.queue_mgr.all_cqids
+            cqids = [cq.qid for cq in self.queue_mgr.get_cqs()]
         else:
             if type(cqids) is int:
                 cqids = [cqids]
@@ -359,8 +387,6 @@ class NVMeDeviceCommon:
             if time.time() > max_time:
                 break
 
-            time.sleep(0.000001)
-
         return num_completions
 
     def get_completion(self, cqid):
@@ -376,59 +402,87 @@ class NVMeDeviceCommon:
         # Wait for the completion by polling for the phase bit change
         if cqe.SF.P == cq.phase:
 
-            # Find outstanding command
-            for command in self.outstanding_commands:
-                if command.posted is True and command.CID == cqe.CID and command.sq.qid == cqe.SQID:
+            command = self.outstanding_commands[(cqe.CID, cqe.SQID)]
+            self.complete_command(command, cqe)
+            return True
+        else:
+            return False
 
-                    # Mark the time the command was completed as soon as we find it!
-                    command.end_time_ns = time.perf_counter_ns()
+    def get_msix_completions(self, cqids=None, max_completions=1, max_time_s=0):
+        if cqids is None:
+            cqs = [cq for cq in self.queue_mgr.get_cqs()]
+        elif type(cqids) is int:
+            cqs = [self.queue_mgr.get(None, cqids)[1]]
 
-                    command.posted = False
-                    command.complete = True
-                    ctypes.memmove(ctypes.addressof(command.cqe),
-                                   ctypes.addressof(cqe),
-                                   ctypes.sizeof(CQE))
+        max_time = time.time() + max_time_s
+        num_completions = 0
 
-                    # Remove from our outstanding_commands list
-                    self.outstanding_commands.remove(command)
+        # Process completion by first waiting on the MSI-X interrupt for the
+        #   completion queue we are waiting for a completion at
+        while True:
+            for cq in cqs:
+                vector = cq.int_vector
+                if self.get_msix_vector_pending_count(vector):
+                    while self.get_completion(cq.qid):
+                        num_completions += 1
 
-                    # Copy command memory to command.data_in and free the memory we used
-                    if command.internal_mem is True:
-                        self.free_cmd_memory(command)
-                        command.internal_mem = False
+            if num_completions >= max_completions:
+                break
 
-                    # Consume the completion we just processed in the queue
-                    cq.consume_completion()
+            if time.time() > max_time:
+                break
 
-                    # Advance the SQ head for the command based on what is on the completion
-                    command.sq.head.set(cqe.SQHD)
+        return num_completions
 
-                    return True
-            else:
-                assert False, 'Found a completion for a command that is not outstanding!'
+    def complete_command(self, command, cqe):
 
-        return False
+        # Mark the time the command was completed as soon as we find it!
+        command.end_time_ns = time.perf_counter_ns()
+
+        # Get the next completion
+        assert command.posted is True, 'not posted'
+        assert command.CID == cqe.CID, 'cqid mismatch'
+        assert command.sq.qid == cqe.SQID, 'sqid mismatch'
+
+        command.posted = False
+        command.complete = True
+        ctypes.memmove(ctypes.addressof(command.cqe),
+                       ctypes.addressof(cqe),
+                       ctypes.sizeof(CQE))
+
+        # Remove from our outstanding_commands list
+        del self.outstanding_commands[(command.CID, command.sq.qid)]
+
+        # Copy command memory to command.data_in and free the memory we used
+        if command.internal_mem is True:
+            self.free_cmd_memory(command)
+            command.internal_mem = False
+
+        # Consume the completion we just processed in the queue
+        command.cq.consume_completion()
+
+        # Advance the SQ head for the command based on what is on the completion
+        command.sq.head.set(cqe.SQHD)
+
+    def process_completions(self, cqids=None, max_completions=1, max_time_s=0):
+        return self.get_completions(cqids, max_completions, max_time_s)
 
     def sync_cmd(self, command, sqid=None, cqid=None, timeout_s=10, alloc_mem=True, check=True):
+
         # Start the command
         self.start_cmd(command, sqid, cqid, alloc_mem)
 
-        # Wait for a completion
-        self.process_completions(command.cq.qid, 1, timeout_s)
+        # Get completions, this function is setup based on what interrupts we are using
+        self.get_completions(command.cq.qid, 1, timeout_s)
 
         # Make sure it is in complete state
-        assert command.complete is True
+        assert command.complete is True, 'Command not complete at the end of sync_cmd'
 
         # Check for successful completion, will raise if not success
         if check:
             status_codes.check(command)
 
     def start_cmd(self, command, sqid=None, cqid=None, alloc_mem=True):
-
-        if (command in self.outstanding_commands and
-                command.posted is True and
-                command.complete is False):
-            assert False, 'Command already with the drive'
 
         if sqid is None:
             if command.cmdset_admin:
@@ -438,6 +492,12 @@ class NVMeDeviceCommon:
 
         # Get command queues
         command.sq, command.cq = self.queue_mgr.get(sqid, cqid)
+
+        # Sanity checks
+        assert (command.CID, command.sq.qid) not in self.outstanding_commands.keys(), (
+            'Command already with the drive, impossible to identify completion')
+        assert command.posted is not True, 'Command already posted'
+        assert command.complete is not True, 'Command already completed'
 
         # Allocate memory for command
         if alloc_mem is True:
@@ -552,6 +612,13 @@ class NVMeDevicePhysical(NVMeDeviceCommon):
         # Create a memory manager object for this device
         self.mem_mgr = System.MemoryMgr(self.mps)
 
+    def __del__(self):
+        self.cc_disable()
+        self.pcie_regs.CMD.BME = 0
+
+        del self.nvme_regs
+        self.pci_userspace_dev_ifc.clean()
+
     def malloc_and_map_iova(self, num_bytes, direction, client='malloc_and_map_iova'):
         # Allocate memory
         mem = self.mem_mgr.malloc(num_bytes, client=client)
@@ -573,3 +640,12 @@ class NVMeDevicePhysical(NVMeDeviceCommon):
 
         # Free memory
         self.mem_mgr.free(memory)
+
+    def init_msix_interrupts(self, num_vectors, start=0):
+        self.num_msix_vectors = start + num_vectors
+        self.pci_userspace_dev_ifc.enable_msix(num_vectors, start)
+        self.int_type = NVMeDeviceIntType.MSIX
+        self.get_completions = self.get_msix_completions
+
+    def get_msix_vector_pending_count(self, vector):
+        return self.pci_userspace_dev_ifc.get_msix_vector_pending_count(vector)

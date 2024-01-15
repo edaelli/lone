@@ -2,7 +2,6 @@ import pytest
 import ctypes
 
 from lone.nvme.spec.registers.pcie_regs import (PCIeRegistersDirect,
-                                                PCICapPowerManagementInterface,
                                                 pcie_reg_struct_factory,
                                                 PCIeRegisters,
                                                 PCIeAccessData)
@@ -85,13 +84,12 @@ def test_cap():
 
     # Create a PCICapPowerManagementInterface capability and test it out
     pcie_regs.CAP.CP = 0x40
-    cap = PCICapPowerManagementInterface(pcie_regs, 0)
-    cap.CAP_ID = PCICapPowerManagementInterface(pcie_regs, 0)._cap_id_
+    cap = pcie_regs.PCICapPowerManagementInterface()
+    cap.CAP_ID = pcie_regs.PCICapPowerManagementInterface()._cap_id_
     cap.NEXT_PTR = 0x00
-    cap.PC = PCICapPowerManagementInterface(pcie_regs, 0).Pc(0x00)
-    cap.PMCS = PCICapPowerManagementInterface(pcie_regs, 0).Pmcs(0x00)
+    cap.PC = pcie_regs.PCICapPowerManagementInterface().Pc(0x00)
+    cap.PMCS = pcie_regs.PCICapPowerManagementInterface().Pmcs(0x00)
     cap.pointer = 0x40
-    cap.log()
 
 
 def test_indirect_access(mocker):

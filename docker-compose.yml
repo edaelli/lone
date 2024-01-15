@@ -29,7 +29,10 @@ services:
 
     # Expose syslog so user can call dmesg
     cap_add:
-        - syslog
+      - syslog
+
+    ulimits:
+      memlock: -1
 
     # Start a command with my_init as the init process to avoid zombies
     command: "/bin/bash"
