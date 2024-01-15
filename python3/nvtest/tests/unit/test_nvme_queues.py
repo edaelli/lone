@@ -107,9 +107,10 @@ def test_nvme_queues_compl_q():
 def test_nvme_queues_q_mgr():
 
     q_mgr = QueueMgr()
-    q_mgr.add(SimpleNamespace(qid=0), SimpleNamespace(qid=0))
-    q_mgr.add(SimpleNamespace(qid=1), SimpleNamespace(qid=1))
+    q_mgr.add(SimpleNamespace(qid=0, int_vector=0), SimpleNamespace(qid=0, int_vector=0))
+    q_mgr.add(SimpleNamespace(qid=1, int_vector=0), SimpleNamespace(qid=1, int_vector=0))
     assert len(q_mgr.all_cqids) == 2
+    assert len(q_mgr.all_cq_vectors) == 2
 
     q_mgr.get(0, 0)
     q_mgr.get(1, 1)

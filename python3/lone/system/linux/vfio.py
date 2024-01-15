@@ -41,6 +41,16 @@ class VfioIoctl(ctypes.Structure):
     VFIO_PCI_ROM_REGION_INDEX = 6
     VFIO_PCI_CONFIG_REGION_INDEX = 7
 
+    VFIO_PCI_INTX_IRQ_INDEX = 0
+    VFIO_PCI_MSI_IRQ_INDEX = 1
+    VFIO_PCI_MSIX_IRQ_INDEX = 2
+    VFIO_PCI_ERR_IRQ_INDEX = 3
+    VFIO_PCI_REQ_IRQ_INDEX = 4
+    VFIO_PCI_NUM_IRQS = 5
+
+    VFIO_IRQ_SET_DATA_EVENTFD = (1 << 2)
+    VFIO_IRQ_SET_ACTION_TRIGGER = (1 << 5)
+
     # Pack to 1 byte
     _pack_ = 1
 
@@ -159,6 +169,28 @@ class vfioMmuUnmapDma(VfioIoctl):
     ]
 
 
+class vfioGetIRQInfo(VfioIoctl):
+    _ioctl_ = 9
+    _fields_ = [
+        ('argsz', ctypes.c_uint32),
+        ('flags', ctypes.c_uint32),
+        ('index', ctypes.c_uint32),
+        ('count', ctypes.c_uint32),
+    ]
+
+
+class vfioSetIRQs(VfioIoctl):
+    _ioctl_ = 10
+    _fields_ = [
+        ('argsz', ctypes.c_uint32),
+        ('flags', ctypes.c_uint32),
+        ('index', ctypes.c_uint32),
+        ('start', ctypes.c_uint32),
+        ('count', ctypes.c_uint32),
+        ('data', ctypes.c_int32 * 4096),
+    ]
+
+
 class SysVfioIfc(SysPciUserspaceDevice):
     ''' Vfio class to interact with a vfio container/device
     '''
@@ -172,6 +204,7 @@ class SysVfioIfc(SysPciUserspaceDevice):
 
         self.iommu_group = iommu_group
         self.device_path = device_path
+        self.eventfds = []
 
         if init:
             self.initialize()
@@ -259,6 +292,34 @@ class SysVfioIfc(SysPciUserspaceDevice):
 
         # Reset the device
         self.reset()
+
+    def get_irq_info(self, index=0):
+        irq_info = vfioGetIRQInfo()
+        irq_info.index = index
+        irq_info.ioctl(self.device_fd)
+        irq_info.get_data()
+        return irq_info
+
+    def enable_msix(self, num_vectors, start_vector):
+        req = vfioSetIRQs()
+        req.count = num_vectors
+        req.flags = (VfioIoctl.VFIO_IRQ_SET_DATA_EVENTFD | VfioIoctl.VFIO_IRQ_SET_ACTION_TRIGGER)
+        req.index = VfioIoctl.VFIO_PCI_MSIX_IRQ_INDEX
+        req.start = start_vector
+
+        for i in range(num_vectors):
+            eventfd = os.eventfd(0, flags=os.EFD_NONBLOCK)
+            req.data[i] = eventfd
+            self.eventfds.append(eventfd)
+
+        req.ioctl(self.device_fd)
+
+    def get_msix_vector_pending_count(self, vector):
+        try:
+            count = int.from_bytes(os.read(self.eventfds[vector], 8), 'little')
+        except BlockingIOError:
+            count = 0
+        return count
 
     def pcie_get(self, offset):
         data = os.pread(self.device_fd, 1, self.pci_region['offset'] + offset)

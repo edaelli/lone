@@ -37,6 +37,11 @@ class RegsStructAccess(ComparableStruct):
             size_bytes = ctypes.sizeof(self.__class__)
             offset = self._base_offset_
 
+            # Raise to debug if the offset was not set!
+            if offset is None:
+                raise Exception('Trying to set {} on {}, but offset is None!'.format(
+                                name, self.__class__.__name__))
+
             # READ size_bytes from offset into a temporary bytearray, then make up an
             #   object of the type we are modifying
             read_data = self.read_data(self._access_.get_func, offset, size_bytes)
@@ -73,6 +78,11 @@ class RegsStructAccess(ComparableStruct):
             # Get registers offset and size for this structure
             size_bytes = ctypes.sizeof(self.__class__)
             offset = self._base_offset_
+
+            # Raise to debug if the offset was not set!
+            if offset is None:
+                raise Exception('Trying to get {} on {}, but offset is None!'.format(
+                                name, self.__class__.__name__))
 
             # READ the latest value from registers
             read_data = self.read_data(self._access_.get_func, offset, size_bytes)

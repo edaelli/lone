@@ -3,6 +3,7 @@
 import os
 import hugepages
 import math
+import ctypes
 
 from lone.system import Memory, MemoryLocation
 
@@ -139,6 +140,7 @@ class HugePagesMemoryMgr(Memory):
         memory.in_use = False
         memory.size = self.page_size
         memory.linked_mem = []
+        ctypes.memset(memory.vaddr, 0, memory.size)
 
     def free_all(self):
         ''' Free all pages and hugepages memory previously allocated (no checks for double free)
