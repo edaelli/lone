@@ -149,8 +149,8 @@ class NVMeDeviceCommon:
                            0))
 
     def create_io_queue_pair(self,
-            cq_entries, cq_id, cq_iv, cq_ien, cq_pc,
-            sq_entries, sq_id, sq_prio, sq_pc, sq_setid):
+                             cq_entries, cq_id, cq_iv, cq_ien, cq_pc,
+                             sq_entries, sq_id, sq_prio, sq_pc, sq_setid):
 
         # Allocate memory for the completion queue, and map with for write with the iommu
         cq_mem = self.malloc_and_map_iova(NVMeDeviceCommon.cq_entry_size * cq_entries,
@@ -166,8 +166,9 @@ class NVMeDeviceCommon:
         create_iocq_cmd.PC = cq_pc
 
         if self.int_type == NVMeDeviceIntType.MSIX:
-            assert cq_iv <= self.num_msix_vectors, 'Invalid Interrupt requested: {}, num_msix_vectors: {}'.format(
-                    cq_iv, self.num_msix_vectors)
+            assert cq_iv <= self.num_msix_vectors, (
+                   'Invalid Interrupt requested: {}, num_msix_vectors: {}').format(
+                       cq_iv, self.num_msix_vectors)
             create_iocq_cmd.IV = cq_iv
         else:
             create_iocq_cmd.IV = 0
@@ -387,6 +388,9 @@ class NVMeDeviceCommon:
             if time.time() > max_time:
                 break
 
+            # Yield in case other threads are running
+            time.sleep(0)
+
         return num_completions
 
     def get_completion(self, cqid):
@@ -409,10 +413,20 @@ class NVMeDeviceCommon:
             return False
 
     def get_msix_completions(self, cqids=None, max_completions=1, max_time_s=0):
+        cqs = []
+
         if cqids is None:
             cqs = [cq for cq in self.queue_mgr.get_cqs()]
         elif type(cqids) is int:
-            cqs = [self.queue_mgr.get(None, cqids)[1]]
+            cq = self.queue_mgr.get(None, cqids)
+            if cq is not None:
+                cqs = [self.queue_mgr.get(None, cqids)[1]]
+        else:
+            assert False, 'Invalid cqids type'
+
+        # If we didn't find a cq to look for completions in just return 0
+        if len(cqs) == 0:
+            return 0
 
         max_time = time.time() + max_time_s
         num_completions = 0
@@ -420,6 +434,9 @@ class NVMeDeviceCommon:
         # Process completion by first waiting on the MSI-X interrupt for the
         #   completion queue we are waiting for a completion at
         while True:
+            # Yield in case other threads are running
+            time.sleep(0)
+
             for cq in cqs:
                 vector = cq.int_vector
                 if self.get_msix_vector_pending_count(vector):
@@ -611,13 +628,6 @@ class NVMeDevicePhysical(NVMeDeviceCommon):
 
         # Create a memory manager object for this device
         self.mem_mgr = System.MemoryMgr(self.mps)
-
-    def __del__(self):
-        self.cc_disable()
-        self.pcie_regs.CMD.BME = 0
-
-        del self.nvme_regs
-        self.pci_userspace_dev_ifc.clean()
 
     def malloc_and_map_iova(self, num_bytes, direction, client='malloc_and_map_iova'):
         # Allocate memory

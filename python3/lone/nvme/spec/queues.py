@@ -88,7 +88,7 @@ class NVMeSubmissionQueue(NVMeQueue):
 
 class NVMeCompletionQueue(NVMeQueue):
     def __init__(self, base_address, entries, entry_size, qid, dbh_addr, int_vector=None):
-        self.int_vector = int_vector # None means pooling, integer means msix
+        self.int_vector = int_vector  # None means pooling, integer means msix
         self.dbt_addr_obj = ctypes.c_uint32(0)
         dbt_addr = ctypes.addressof(self.dbt_addr_obj)
         super().__init__(base_address, entries, entry_size, qid, dbh_addr, dbt_addr)

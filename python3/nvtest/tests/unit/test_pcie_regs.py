@@ -92,6 +92,13 @@ def test_cap():
     cap.pointer = 0x40
 
 
+def test_cap_offsets():
+    pcie_regs = PCIeRegistersDirect()
+    pcie_regs.PCICapMSI().set_offsets(0)
+    pcie_regs.PCICapMSIX().set_offsets(0)
+    pcie_regs.PCICapExpress().set_offsets(0)
+
+
 def test_indirect_access(mocker):
 
     test_data = [0] * 4096
@@ -129,3 +136,59 @@ def test_indirect_access(mocker):
     # Test an attribute that doesn't exist
     with pytest.raises(AttributeError):
         pcie_regs.NOT_AN_ATTR
+
+    # Check that a field without a _base_offset raises an exception on both set and get
+    pcie_regs.Id._base_offset_ = None
+    with pytest.raises(Exception):
+        pcie_regs.ID.DID
+    with pytest.raises(Exception):
+        pcie_regs.ID.DID = 1
+
+    # Capabilities, TODO: Clean this up!
+    pcie_regs.CAP.CP = 0x40
+    pcie_regs.CAPS.DATA[0x00] = 0x01
+    pcie_regs.CAPS.DATA[0x01] = 0x40 + 0x10
+    pcie_regs.CAPS.DATA[0x10] = 0x05
+    pcie_regs.CAPS.DATA[0x11] = 0x40 + 0x20
+    pcie_regs.CAPS.DATA[0x20] = 0x10
+    pcie_regs.CAPS.DATA[0x21] = 0x40 + 0x30
+    pcie_regs.CAPS.DATA[0x30] = 0x11
+    pcie_regs.CAPS.DATA[0x31] = 0x00
+
+    pcie_regs.CAPS.DATA[0xC0] = 0x01
+    pcie_regs.CAPS.DATA[0xC1] = 0x00
+    pcie_regs.CAPS.DATA[0xC2] = 0x40
+    pcie_regs.CAPS.DATA[0xC3] = 0x10
+
+    pcie_regs.CAPS.DATA[0xC4] = 0x03
+    pcie_regs.CAPS.DATA[0xC5] = 0x00
+    pcie_regs.CAPS.DATA[0xC6] = 0x00
+    pcie_regs.CAPS.DATA[0xC7] = 0x00
+
+    pcie_regs.init_capabilities()
+
+
+def test_caps_direct():
+    # Capabilities, TODO: Clean this up!
+    pcie_regs = PCIeRegistersDirect()
+    pcie_regs.CAP.CP = 0x40
+    pcie_regs.CAPS.DATA[0x00] = 0x01
+    pcie_regs.CAPS.DATA[0x01] = 0x40 + 0x10
+    pcie_regs.CAPS.DATA[0x10] = 0x05
+    pcie_regs.CAPS.DATA[0x11] = 0x40 + 0x20
+    pcie_regs.CAPS.DATA[0x20] = 0x10
+    pcie_regs.CAPS.DATA[0x21] = 0x40 + 0x30
+    pcie_regs.CAPS.DATA[0x30] = 0x11
+    pcie_regs.CAPS.DATA[0x31] = 0x00
+
+    pcie_regs.CAPS.DATA[0xC0] = 0x01
+    pcie_regs.CAPS.DATA[0xC1] = 0x00
+    pcie_regs.CAPS.DATA[0xC2] = 0x40
+    pcie_regs.CAPS.DATA[0xC3] = 0x10
+
+    pcie_regs.CAPS.DATA[0xC4] = 0x03
+    pcie_regs.CAPS.DATA[0xC5] = 0x00
+    pcie_regs.CAPS.DATA[0xC6] = 0x00
+    pcie_regs.CAPS.DATA[0xC7] = 0x00
+
+    pcie_regs.init_capabilities()

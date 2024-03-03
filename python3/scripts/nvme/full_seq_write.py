@@ -190,7 +190,7 @@ async def seq_write(nvme_device, wr_cmds, slba, nsze, statistics):
                     break
 
             # Complete all commands that are wating for completion
-            completions = nvme_device.process_completions()
+            nvme_device.process_completions()
 
             # Check status of all completed commands
             for wr_cmd in [cmd for cmd in wr_cmds if (cmd.posted is False and

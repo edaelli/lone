@@ -10,6 +10,7 @@ def test_hugepages_memory_mgr(mocker):
     mocker.patch('hugepages.malloc', side_effect=range(0x1000, 0x10000000, 2 * 1024 * 1024))
     mocker.patch('hugepages.get_size', return_value=2 * 1024 * 1024)
     mocker.patch('hugepages.free', return_value=None)
+    mocker.patch('ctypes.memset', return_value=None)
 
     hp_mem_mgr = HugePagesMemoryMgr(4096)
 

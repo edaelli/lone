@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from lone.injection import Injector
 from lone.system import DMADirection, MemoryLocation
-from lone.nvme.device import NVMeDevice, NVMeDeviceCommon
+from lone.nvme.device import NVMeDevice, NVMeDeviceCommon, NVMeDeviceIntType
 from lone.nvme.spec.structures import ADMINCommand, DataInCommon, DataOutCommon, CQE
 from lone.nvme.spec.commands.admin.identify import IdentifyController
 from lone.nvme.spec.commands.admin.format_nvm import FormatNVM
@@ -122,9 +122,43 @@ def test_init_admin_queues(nvme_device_raw):
 
 
 def test_init_io_queues(nvme_device_raw):
-    test_init_admin_queues(nvme_device_raw)
+    nvme_device_raw.init_admin_queues(asq_entries=16, acq_entries=16)
     nvme_device_raw.cc_enable()
     nvme_device_raw.init_io_queues()
+
+
+def test_init_io_queues_msix(nvme_device_raw):
+    if nvme_device_raw.pci_slot == 'nvsim':
+        nvme_device_raw.init_admin_queues(asq_entries=16, acq_entries=16)
+        nvme_device_raw.cc_enable()
+        nvme_device_raw.int_type = NVMeDeviceIntType.MSIX
+        nvme_device_raw.num_msix_vectors = 1
+        nvme_device_raw.init_io_queues(num_queues=1)
+    else:
+        nvme_device_raw.init_admin_queues(asq_entries=16, acq_entries=16)
+        nvme_device_raw.cc_enable()
+        nvme_device_raw.init_io_queues(num_queues=1)
+        nvme_device_raw.init_msix_interrupts(1)
+
+
+def test_get_msix_completions(nvme_device_raw, mocker):
+    nvme_device_raw.get_msix_completions()
+    nvme_device_raw.get_msix_completions(0)
+    with pytest.raises(AssertionError):
+        nvme_device_raw.get_msix_completions('string')
+
+    test_init_admin_queues(nvme_device_raw)
+    nvme_device_raw.get_msix_vector_pending_count = None
+
+    mocker.patch.object(nvme_device_raw, 'get_msix_vector_pending_count', return_value=False)
+    nvme_device_raw.get_msix_completions(0)
+
+    mocker.patch.object(nvme_device_raw, 'get_msix_vector_pending_count', return_value=True)
+    mocker.patch.object(nvme_device_raw, 'get_completion', side_effect=[True, False])
+    nvme_device_raw.get_msix_completions(0)
+
+    mocker.patch.object(nvme_device_raw, 'get_msix_vector_pending_count', return_value=False)
+    nvme_device_raw.get_msix_completions(0, max_time_s=0.1)
 
 
 def test_free_io_queues(nvme_device_raw):
@@ -199,6 +233,7 @@ def test_get_completion(nvme_device, mocker):
     mocked_cqe = CQE()
     mocked_cq = SimpleNamespace(get_next_completion=lambda: mocked_cqe, phase=0)
     mocker.patch('lone.nvme.spec.queues.QueueMgr.get', return_value=(None, mocked_cq))
+    nvme_device.outstanding_commands[(0, 0)] = ADMINCommand()
     with pytest.raises(AssertionError):
         nvme_device.get_completion(0)
 
@@ -207,7 +242,7 @@ def test_get_completion(nvme_device, mocker):
     mocked_cqe = CQE()
     mocked_cq = SimpleNamespace(get_next_completion=lambda: mocked_cqe, phase=0)
     mocker.patch('lone.nvme.spec.queues.QueueMgr.get', return_value=(None, mocked_cq))
-    nvme_device.outstanding_commands = [ADMINCommand(), ADMINCommand()]
+    nvme_device.outstanding_commands[(0, 0)] = ADMINCommand()
     with pytest.raises(AssertionError):
         nvme_device.get_completion(0)
 
@@ -218,29 +253,33 @@ def test_get_completion(nvme_device, mocker):
     mocked_cq = SimpleNamespace(get_next_completion=lambda: mocked_cqe, phase=0,
                                 consume_completion=lambda: None)
     mocker.patch('lone.nvme.spec.queues.QueueMgr.get', return_value=(None, mocked_cq))
-    nvme_device.outstanding_commands = [ADMINCommand()]
-    nvme_device.outstanding_commands[0].posted = True
-    nvme_device.outstanding_commands[0].CID = 0
-    nvme_device.outstanding_commands[0].internal_mem = True
-    nvme_device.outstanding_commands[0].sq = SimpleNamespace(
+    cmd = ADMINCommand()
+    cmd.posted = True
+    cmd.CID = 0
+    cmd.internal_mem = True
+    cmd.sq = SimpleNamespace(
         qid=0,
         head=SimpleNamespace(set=lambda x: None))
+    cmd.cq = mocked_cq
+    nvme_device.outstanding_commands[(0, 0)] = cmd
     nvme_device.get_completion(0)
 
-    # Test path when we get a completion, for a command that is outstanding, without memory
+    # Test path when we get a completion, for a command that is outstanding, with memory
     mocked_cqe = CQE()
     mocked_cqe.CID = 0
     mocked_cqe.qid = 0
     mocked_cq = SimpleNamespace(get_next_completion=lambda: mocked_cqe, phase=0,
                                 consume_completion=lambda: None)
     mocker.patch('lone.nvme.spec.queues.QueueMgr.get', return_value=(None, mocked_cq))
-    nvme_device.outstanding_commands = [ADMINCommand()]
-    nvme_device.outstanding_commands[0].posted = True
-    nvme_device.outstanding_commands[0].CID = 0
-    nvme_device.outstanding_commands[0].internal_mem = False
-    nvme_device.outstanding_commands[0].sq = SimpleNamespace(
+    cmd = ADMINCommand()
+    cmd.posted = True
+    cmd.CID = 0
+    cmd.internal_mem = False
+    cmd.sq = SimpleNamespace(
         qid=0,
         head=SimpleNamespace(set=lambda x: None))
+    cmd.cq = mocked_cq
+    nvme_device.outstanding_commands[(0, 0)] = cmd
     nvme_device.get_completion(0)
 
 
@@ -248,7 +287,7 @@ def test_sync_cmd(nvme_device):
     # Replace start_cmd and process_completions with our own stubs
     #  so that we can test the sync_cmd functionality and not worry
     #  about the simulator responding to commands
-    nvme_device.process_completions = lambda x, y, z: None
+    nvme_device.get_completions = lambda x, y, z: None
     nvme_device.start_cmd = lambda a, b, c, d: None
 
     # Create a command to test sync_cmd with
@@ -287,7 +326,7 @@ def test_start_cmd_admin(lone_config, nvme_device):
 
     # Wait for the command to complete
     while id_cmd.complete is False:
-        nvme_device.process_completions(max_completions=1)
+        nvme_device.get_completions(max_completions=1)
         time.sleep(0.01)
 
     # Test start_cmd without allocating memory
@@ -296,7 +335,7 @@ def test_start_cmd_admin(lone_config, nvme_device):
 
     # Wait for the command to complete
     while fmt_cmd.complete is False:
-        nvme_device.process_completions()
+        nvme_device.get_completions()
         time.sleep(0.01)
 
 
@@ -364,10 +403,16 @@ def test_alloc_cmd_memory(lone_config, nvme_device):
 def test_mocked_physical_device(mocker):
     ''' Test a heavily mocked version of a physical PCIe device
     '''
-    mocked_pcie_regs = SimpleNamespace(init_capabilities=lambda: None)
-    mocked_nvme_regs = SimpleNamespace(CC=SimpleNamespace(MPS=4096))
+    mocked_pcie_regs = SimpleNamespace(init_capabilities=lambda: None,
+                                       CMD=SimpleNamespace(BME=0))
+    mocked_nvme_regs = SimpleNamespace(CC=SimpleNamespace(MPS=4096),
+                                       CSTS=SimpleNamespace(CFS=0, RDY=0),
+                                       SQNDBS=[])
     mocked_system = SimpleNamespace(pci_regs=lambda: mocked_pcie_regs,
                                     nvme_regs=lambda: mocked_nvme_regs,
+                                    clean=lambda: None,
+                                    enable_msix=lambda x, y: None,
+                                    get_msix_vector_pending_count=lambda x: 0,
                                     map_dma_region_read=lambda x, y, z: None,
                                     map_dma_region_write=lambda x, y, z: None,
                                     unmap_dma_region=lambda x, y: None)
@@ -386,3 +431,6 @@ def test_mocked_physical_device(mocker):
     # Test free_and_unmap_iova
     mem = MemoryLocation(0, 0, 0, 0, 'test')
     phys_dev.free_and_unmap_iova(mem)
+
+    phys_dev.init_msix_interrupts(2)
+    phys_dev.get_msix_vector_pending_count(0)

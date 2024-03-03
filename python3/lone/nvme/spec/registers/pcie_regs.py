@@ -859,17 +859,21 @@ class PCIeRegisters:
 
         # Get the pointer to the first capability and walk the list saving each in
         #  the self.capabilities list
-        next_cap_ptr = self.CAP.CP
-
         for next_cap_ptr in [self.CAP.CP, 0x100]:
 
             while next_cap_ptr:
-                cap_gen = regs.PCICapabilityGen()
-                cap_gen._access_ = self._access_data_
-                cap_gen._base_offset_ = next_cap_ptr
 
                 # TODO: Make this a cleaner table!
                 if next_cap_ptr < 0x100:
+                    cap_gen = regs.PCICapabilityGen()
+
+                    if cap_gen._access_.get_func is None:
+                        cap_gen = regs.PCICapabilityGen.from_address(
+                            ctypes.addressof(self) + next_cap_ptr)
+                    else:
+                        cap_gen._access_ = self._access_data_
+                        cap_gen._base_offset_ = next_cap_ptr
+
                     if cap_gen.CAP_ID == 0x01:
                         cap_obj = self.PCICapPowerManagementInterface
                     elif cap_gen.CAP_ID == 0x05:
@@ -880,13 +884,26 @@ class PCIeRegisters:
                         cap_obj = self.PCICapMSIX
                     else:
                         cap_obj = self.PCICapabilityGen
+
+                    next_cap_ptr = cap_gen.NEXT_PTR
                 else:
-                    if cap_gen.CAP_ID == 0x01:
+                    cap_gen_e = regs.PCICapabilityGenExtended()
+
+                    if cap_gen_e._access_.get_func is None:
+                        cap_gen_e = regs.PCICapabilityGenExtended.from_address(
+                            ctypes.addressof(self) + next_cap_ptr)
+                    else:
+                        cap_gen_e._access_ = self._access_data_
+                        cap_gen_e._base_offset_ = next_cap_ptr
+
+                    if cap_gen_e.CAP_ID == 0x01:
                         cap_obj = self.PCICapExtendedAer
-                    elif cap_gen.CAP_ID == 0x03:
+                    elif cap_gen_e.CAP_ID == 0x03:
                         cap_obj = self.PCICapExtendeDeviceSerialNumber
                     else:
                         cap_obj = self.PCICapabilityGenExtended
+
+                    next_cap_ptr = cap_gen_e.NEXT_PTR
 
                 capability = cap_obj()
                 capability._access_ = self._access_data_
@@ -894,7 +911,6 @@ class PCIeRegisters:
                 capability.set_offsets(capability._base_offset_)
 
                 self.capabilities.append(capability)
-                next_cap_ptr = cap_gen.NEXT_PTR
 
     def log(self):
         log = logging.getLogger('pcie_regs')

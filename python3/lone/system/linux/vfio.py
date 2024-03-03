@@ -168,6 +168,7 @@ class vfioMmuUnmapDma(VfioIoctl):
         ('size', ctypes.c_uint64),
     ]
 
+
 class vfioGetIRQInfo(VfioIoctl):
     _ioctl_ = 9
     _fields_ = [
@@ -176,6 +177,7 @@ class vfioGetIRQInfo(VfioIoctl):
         ('index', ctypes.c_uint32),
         ('count', ctypes.c_uint32),
     ]
+
 
 class vfioSetIRQs(VfioIoctl):
     _ioctl_ = 10
@@ -315,7 +317,7 @@ class SysVfioIfc(SysPciUserspaceDevice):
     def get_msix_vector_pending_count(self, vector):
         try:
             count = int.from_bytes(os.read(self.eventfds[vector], 8), 'little')
-        except BlockingIOError as e:
+        except BlockingIOError:
             count = 0
         return count
 

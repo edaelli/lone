@@ -81,7 +81,7 @@ class RegsStructAccess(ComparableStruct):
 
             # Raise to debug if the offset was not set!
             if offset is None:
-                raise Exception('Trying to set {} on {}, but offset is None!'.format(
+                raise Exception('Trying to get {} on {}, but offset is None!'.format(
                                 name, self.__class__.__name__))
 
             # READ the latest value from registers

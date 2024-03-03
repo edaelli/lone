@@ -83,15 +83,12 @@ def main():
 
     nvme_device.start_cmd(read_cmd, 1, 1, alloc_mem=False)
     read_cmd.complete = False
-    while read_cmd.complete == False:
-        completions = nvme_device.process_completions()
-        import time
-        time.sleep(0.01)
+    while read_cmd.complete is False:
+        nvme_device.process_completions()
 
-    assert read_cmd.complete == True
+    assert read_cmd.complete is True
     assert read_cmd.cqe.SF.SC == 0
 
-    #print('int counts:', nvme_device.get_msix_interrupt_counts())
 
 if __name__ == '__main__':
     sys.exit(main())

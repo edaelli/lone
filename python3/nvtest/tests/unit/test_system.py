@@ -319,6 +319,29 @@ def test_sysvfioifc_init(mocker):
     ifc = SysVfioIfc('test', init=True)
 
 
+def test_get_irq_info(mocker):
+    mocker.patch('fcntl.ioctl', return_value=0)
+    ifc = SysVfioIfc('test', init=False)
+    ifc.device_fd = 1
+    ifc.get_irq_info()
+
+
+def test_enable_msix(mocker):
+    mocker.patch('fcntl.ioctl', return_value=0)
+    ifc = SysVfioIfc('test', init=False)
+    ifc.device_fd = 1
+    ifc.enable_msix(1, 0)
+
+
+def test_get_msix_vector_pending_count(mocker):
+    mocker.patch('os.read', side_effect=[bytes(0), BlockingIOError()])
+    ifc = SysVfioIfc('test', init=False)
+    ifc.device_fd = 1
+    ifc.eventfds = [0]
+    ifc.get_msix_vector_pending_count(0)
+    ifc.get_msix_vector_pending_count(0)
+
+
 def test_sysvfioifc_pci_regs(mocker):
     ifc = SysVfioIfc('test', init=False)
     ifc.device_fd = 1
