@@ -272,7 +272,7 @@ def pcie_reg_struct_factory(access_data):
 
         class PCICapability(RegsStructAccess):
             def set_offsets(self, base_offset):
-                pass
+                self._base_offset_ = base_offset
 
         class PCICapabilityGen(PCICapability):
             _cap_id_ = None
@@ -284,6 +284,9 @@ def pcie_reg_struct_factory(access_data):
             ]
             _access_ = access_data
             _base_offset_ = None
+
+        class PCICapabilityUnknown(PCICapabilityGen):
+            _cap_id_ = 0x00
 
         class PCICapPowerManagementInterface(PCICapability):
             _cap_id_ = 0x1
@@ -327,6 +330,10 @@ def pcie_reg_struct_factory(access_data):
             ]
             _access_ = access_data
             _base_offset_ = None
+
+            def set_offsets(self, base_offset):
+                self.Pc._base_offset_ = base_offset + 2
+                self.Pmcs._base_offset_ = base_offset + 4
 
         class PCICapMSI(PCICapability):
             _cap_id_ = 0x05
@@ -641,6 +648,9 @@ def pcie_reg_struct_factory(access_data):
             _access_ = access_data
             _base_offset_ = None
 
+        class PCICapabilityExtUnknown(PCICapabilityGenExtended):
+            _cap_id_ = 0x00
+
         class PCICapExtendedAer(PCICapability):
             _cap_id_ = 0x1
 
@@ -854,8 +864,28 @@ def pcie_reg_struct_factory(access_data):
 class PCIeRegisters:
 
     def init_capabilities(self):
+
+        PCIeCapabilityIdTable = [
+            self.PCICapabilityUnknown,
+            self.PCICapPowerManagementInterface,
+            *([self.PCICapabilityUnknown] * 3),
+            self.PCICapMSI,
+            *([self.PCICapabilityUnknown] * 10),
+            self.PCICapExpress,
+            self.PCICapMSIX,
+            *([self.PCICapabilityUnknown] * 238),
+        ]
+
+        PCIeCapabilityExtIdTable = [
+            self.PCICapabilityUnknown,
+            self.PCICapExtendedAer,
+            *([self.PCICapabilityUnknown] * 1),
+            self.PCICapExtendeDeviceSerialNumber,
+            *([self.PCICapabilityExtUnknown] * 251),
+        ]
+
+        # Collect capabilities into a list
         self.capabilities = []
-        regs = pcie_reg_struct_factory(self._access_data_)
 
         # Get the pointer to the first capability and walk the list saving each in
         #  the self.capabilities list
@@ -863,54 +893,56 @@ class PCIeRegisters:
 
             while next_cap_ptr:
 
-                # TODO: Make this a cleaner table!
+                # Different handling for generic vs extended capabilities
                 if next_cap_ptr < 0x100:
-                    cap_gen = regs.PCICapabilityGen()
 
-                    if cap_gen._access_.get_func is None:
-                        cap_gen = regs.PCICapabilityGen.from_address(
+                    # Make a generic capability first so we can find out what type it is
+                    cap_gen = self.PCICapabilityGen()
+
+                    # Different handling for direct vs indirect registers
+                    if type(self) is PCIeRegistersDirect:
+                        cap_gen = self.PCICapabilityGen.from_address(
                             ctypes.addressof(self) + next_cap_ptr)
                     else:
                         cap_gen._access_ = self._access_data_
                         cap_gen._base_offset_ = next_cap_ptr
 
-                    if cap_gen.CAP_ID == 0x01:
-                        cap_obj = self.PCICapPowerManagementInterface
-                    elif cap_gen.CAP_ID == 0x05:
-                        cap_obj = self.PCICapMSI
-                    elif cap_gen.CAP_ID == 0x10:
-                        cap_obj = self.PCICapExpress
-                    elif cap_gen.CAP_ID == 0x11:
-                        cap_obj = self.PCICapMSIX
-                    else:
-                        cap_obj = self.PCICapabilityGen
+                    # Now we can pull the real type from the table
+                    cap_obj = PCIeCapabilityIdTable[cap_gen.CAP_ID]
 
-                    next_cap_ptr = cap_gen.NEXT_PTR
                 else:
-                    cap_gen_e = regs.PCICapabilityGenExtended()
+                    # Make a generic capability first so we can find out what type it is
+                    cap_gen_e = self.PCICapabilityGenExtended()
 
-                    if cap_gen_e._access_.get_func is None:
-                        cap_gen_e = regs.PCICapabilityGenExtended.from_address(
+                    # Different handling for direct vs indirect registers
+                    if type(self) is PCIeRegistersDirect:
+                        cap_gen_e = self.PCICapabilityGenExtended.from_address(
                             ctypes.addressof(self) + next_cap_ptr)
                     else:
                         cap_gen_e._access_ = self._access_data_
                         cap_gen_e._base_offset_ = next_cap_ptr
 
-                    if cap_gen_e.CAP_ID == 0x01:
-                        cap_obj = self.PCICapExtendedAer
-                    elif cap_gen_e.CAP_ID == 0x03:
-                        cap_obj = self.PCICapExtendeDeviceSerialNumber
-                    else:
-                        cap_obj = self.PCICapabilityGenExtended
+                    # Now we can pull the real type from the table
+                    cap_obj = PCIeCapabilityExtIdTable[cap_gen_e.CAP_ID]
 
-                    next_cap_ptr = cap_gen_e.NEXT_PTR
+                # Only add known types to the capabilities list
+                if type(self) is PCIeRegistersDirect:
+                    capability = cap_obj.from_address(ctypes.addressof(self.ID) + next_cap_ptr)
+                else:
+                    capability = cap_obj()
+                    capability._access_ = self._access_data_
+                    capability._base_offset_ = next_cap_ptr
+                    capability.set_offsets(capability._base_offset_)
 
-                capability = cap_obj()
-                capability._access_ = self._access_data_
-                capability._base_offset_ = next_cap_ptr
-                capability.set_offsets(capability._base_offset_)
+                # Only add if cap id is known
+                if type(capability) in [self.PCICapabilityUnknown, self.PCICapabilityExtUnknown]:
+                    logging.info('Found unsupported Capability {}: 0x{:x}'.format(
+                        'gen' if next_cap_ptr < 0x100 else 'ext', capability.CAP_ID))
+                else:
+                    self.capabilities.append(capability)
 
-                self.capabilities.append(capability)
+                # Advance to the next pointer
+                next_cap_ptr = capability.NEXT_PTR
 
     def log(self):
         log = logging.getLogger('pcie_regs')

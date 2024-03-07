@@ -109,13 +109,51 @@ class NVMeSimulator(NVMeDeviceCommon):
         def allocated_mem_list(self):
             return self._allocated_mem_list
 
+    def initialize_pcie_caps(self):
+        self.pcie_regs.CAP.CP = type(self.pcie_regs).CAPS.offset
+        next_ptr = self.pcie_regs.CAP.CP
+        next_addr = ctypes.addressof(self.pcie_regs) + next_ptr
+
+        # Make one of every cap we know of for the simulator
+        for t in [self.pcie_regs.PCICapPowerManagementInterface,
+                  self.pcie_regs.PCICapMSI,
+                  self.pcie_regs.PCICapExpress,
+                  self.pcie_regs.PCICapMSIX,
+                  self.pcie_regs.PCICapabilityUnknown]:
+            c = t.from_address(next_addr)
+            c.CAP_ID = type(c)._cap_id_
+            next_ptr += ctypes.sizeof(c)
+            next_addr += ctypes.sizeof(c)
+            if type(c) is self.pcie_regs.PCICapabilityUnknown:
+                c.NEXT_PTR = 0
+            else:
+                c.NEXT_PTR = next_ptr
+
+        next_ptr = 0x100
+        next_addr = ctypes.addressof(self.pcie_regs) + next_ptr
+
+        # Now for extended caps
+        for t in [self.pcie_regs.PCICapExtendedAer,
+                  self.pcie_regs.PCICapExtendeDeviceSerialNumber,
+                  self.pcie_regs.PCICapabilityExtUnknown]:
+            c = t.from_address(next_addr)
+            c.CAP_ID = type(c)._cap_id_
+            next_ptr += ctypes.sizeof(c)
+            next_addr += ctypes.sizeof(c)
+            if type(c) is self.pcie_regs.PCICapabilityExtUnknown:
+                c.NEXT_PTR = 0
+            else:
+                c.NEXT_PTR = next_ptr
+
     def __init__(self, pci_slot):
         assert pci_slot == 'nvsim', (
             'Trying to instantiate simulator with {} for pci_slot'.format(pci_slot))
+        self.sim_thread_started = False
         self.pci_slot = pci_slot
 
         # Create the object to access PCIe registers, and init cababilities
         self.pcie_regs = PCIeRegistersDirect()
+        self.initialize_pcie_caps()
         self.pcie_regs.init_capabilities()
 
         # Create the object to access NVMe registers
@@ -150,5 +188,6 @@ class NVMeSimulator(NVMeDeviceCommon):
     def __del__(self):
         # Stop and join the thread when the nvsim object goes out of scope (and eventually
         #   gets gc'd because at that point it should stop accessing any memory!
-        self.sim_thread.stop()
-        self.sim_thread.join()
+        if self.sim_thread_started:
+            self.sim_thread.stop()
+            self.sim_thread.join()
