@@ -12,6 +12,7 @@ from lone.nvme.spec.commands.nvm.write import Write
 from lone.nvme.spec.prp import PRP
 from lone.system import DMADirection
 from lone.util.logging import log_format
+from lone.util.lba_gen import LBARandGenLFSR
 
 
 def main():
@@ -67,13 +68,14 @@ def main():
     write_cmd.DPTR.PRP.PRP1 = write_prp.prp1
     write_cmd.DPTR.PRP.PRP2 = write_prp.prp2
 
+    # Random LBA generator
+    slbas = LBARandGenLFSR(ns.nsze, num_blocks, initial_state=237, start_lba=args.slba)
+
     # Send the requested commands
-    slba = args.slba
     for i in range(args.num_cmds):
-        write_cmd.SLBA = slba
+        write_cmd.SLBA = slbas.next()
         write_cmd.complete = False
         nvme_device.sync_cmd(write_cmd, alloc_mem=False, timeout_s=1)
-        slba += num_blocks
 
     # Create and map PRP for the read
     read_prp = PRP(xfer_len, nvme_device.mps)
@@ -84,19 +86,18 @@ def main():
     read_cmd.DPTR.PRP.PRP1 = read_prp.prp1
     read_cmd.DPTR.PRP.PRP2 = read_prp.prp2
 
+    # Reset random lba generator so we can read the same LBAs we wrote
+    slbas.reset()
+
     zero_data = bytes([0x00] * xfer_len)
-    slba = args.slba
     for i in range(args.num_cmds):
         # Zero out the buffer so we can validate
         write_prp.set_data_buffer(zero_data)
 
         # Update SLBA
-        read_cmd.SLBA = slba
+        read_cmd.SLBA = slbas.next()
         read_cmd.complete = False
         nvme_device.sync_cmd(read_cmd, alloc_mem=False, timeout_s=1)
-
-        # Increment SLBA to the next one
-        slba += num_blocks
 
         # Get the data in from the read prp
         data_in = read_prp.get_data_buffer()

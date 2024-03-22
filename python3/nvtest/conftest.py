@@ -19,6 +19,26 @@ def pytest_addoption(parser):
     parser.addoption("--pci-slot", required=False, default=None, type=str)
 
 
+def pytest_configure(config):
+    # Get config path if passed in to figure out what tests to run
+    config_path = config.getoption('config')
+
+    # If we have a valid config file passed in, parse it with yaml
+    if config_path is not None:
+        # Absolute path
+        config_path = os.path.abspath(config.getoption('config'))
+
+        # Make sure it exists
+        assert os.path.exists(config_path), 'Config path: {} does not exist'.format(config_path)
+
+        with open(config_path) as fh:
+            config_data = yaml.load(fh, Loader=yaml.SafeLoader)
+
+            if 'pytest' in config_data:
+                if 'verbose' in config_data['pytest']:
+                    config.option.verbose = config_data['pytest']['verbose']
+
+
 def pytest_collection_modifyitems(session, config, items):
 
     # Get config path if passed in to figure out what tests to run
