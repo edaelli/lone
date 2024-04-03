@@ -7,32 +7,26 @@ class LBARandGenLFSR:
             block_size = 4096
             max_lba = int((128 * (1024 **4) // block_size) - 1)
             num_blocks_per_io = 4 # 16K ios in the example above
-            rand_lbas = LBARandGenLFSR(max_lba, num_blocks_per_io, init_state=1, start_lba=0)
+            rand_lbas = LBARandGenLFSR(max_lba, num_blocks_per_io, init_state=1)
             slba = lbas.next() # call until slba == lbas.initial_state
 
         NOTES:
             Since 0 is never returned by an LFSR but is a valid LBA, it is
             always returned as the last value in the sequece
     '''
-    def __init__(self, max_lba, num_blocks_per_io, initial_state=237, start_lba=0):
+    def __init__(self, max_lba, num_blocks_per_io, initial_state=237):
         ''' max_lba: largest LBA to return
             num_blocks_per_io: how many blocks per lba to be used
             initial_state: seed for the LFSR
-            start_lba: smallest lba to return. If used, the number of
-              lbas returned will be in the max_lba - start_lba range
         '''
         self.max_lba = max_lba - num_blocks_per_io
         self.num_blocks_per_io = num_blocks_per_io
-        self.start_lba = start_lba
 
         # Make sure the initial value is a valid lba
         self.initial_state = initial_state
 
         # Max value
-        assert self.start_lba < self.max_lba, (
-            'Max lba 0x{:x} must be greater than start lba 0x{:x}'.format(
-                self.max_lba, self.start_lba))
-        self.max_value = (self.max_lba - start_lba) // num_blocks_per_io
+        self.max_value = self.max_lba // num_blocks_per_io
 
         # Initial state
         assert self.initial_state < self.max_value, (
@@ -65,9 +59,9 @@ class LBARandGenLFSR:
 
         if self.state == self.initial_state and self.period > 0:
             self.complete = True
-            ret = 0 + self.start_lba
+            ret = 0
         else:
-            ret = self.next() + self.start_lba
+            ret = self.next()
 
         return ret
 
@@ -90,7 +84,7 @@ class LBARandGenLFSR:
         polys[15] = [15 - p for p in [15, 14, 13, 11]]
         polys[16] = [16 - p for p in [16, 14, 13, 11]]
         polys[17] = [17 - p for p in [17, 16, 15, 14]]
-        polys[18] = [18 - p for p in [18, 17, 16, 11]]
+        polys[18] = [18 - p for p in [18, 17, 16, 13]]
         polys[19] = [19 - p for p in [19, 18, 17, 14]]
         polys[20] = [20 - p for p in [20, 19, 16, 14]]
         polys[21] = [21 - p for p in [21, 20, 19, 16]]
