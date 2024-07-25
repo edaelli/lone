@@ -84,7 +84,6 @@ class HugePagesMemoryMgr(Memory):
 
                 # Found it!
                 ret_mem = group[0]
-                ret_mem.in_use = True
 
                 # Link the memory pages together to be able to free it later
                 for m in group[1:]:
@@ -106,6 +105,10 @@ class HugePagesMemoryMgr(Memory):
 
         # Add iova
         ret_mem.iova = self.iova_mgr.get(ret_mem.size)
+
+        # Mark in use
+        ret_mem.in_use = True
+
         return ret_mem
 
     def malloc_pages(self, num_pages, client='HugePagesMemoryMgr'):
@@ -140,6 +143,11 @@ class HugePagesMemoryMgr(Memory):
         memory.in_use = False
         memory.size = self.page_size
         memory.linked_mem = []
+
+        # Free the iova used for this memory
+        self.iova_mgr.free(memory.iova)
+
+        # Clear free'd memory
         ctypes.memset(memory.vaddr, 0, memory.size)
 
     def free_all(self):

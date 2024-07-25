@@ -182,7 +182,7 @@ class PRP:
 
     def free_all_memory(self):
         for mem in self.mem_list:
-            self.nvme_device.mem_mgr.free(mem)
+            self.nvme_device.free_and_unmap_iova(mem)
 
     def get_data_segments(self):
         segments = []

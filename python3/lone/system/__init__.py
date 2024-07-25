@@ -142,22 +142,24 @@ class DMADirection(Enum):
 
 class IovaMgr:
     ''' This class manages how IOVAs are assigned to memory
-        NOTE: VERY simple for now it just keeps incrementing IOVAs
-        to addresses we know are not in use.
+        NOTE: Limits it to 2M requests
     '''
     def __init__(self, iova_base):
-        self.sc_page_size = os.sysconf('SC_PAGE_SIZE')
         self.iova_base = iova_base
-        self.next_available_iova = self.iova_base
+        next_available_iova = self.iova_base
+
+        self.free_iovas = []
+        for i in range(100):
+            self.free_iovas.append(next_available_iova)
+            next_available_iova += (2 * 1024 * 1024)
 
     def get(self, size):
-        iova = self.next_available_iova
-        self.next_available_iova += (self.sc_page_size * round(size / self.sc_page_size))
-        return iova
+        assert size < (2 * 1024 * 1024)
+        ret = self.free_iovas.pop(0)
+        return ret
 
     def free(self, iova):
-        # Nothing to do here yet!
-        pass
+        self.free_iovas.append(iova)
 
 
 class MemoryLocation:
