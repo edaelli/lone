@@ -146,20 +146,30 @@ class IovaMgr:
     '''
     def __init__(self, iova_base):
         self.iova_base = iova_base
+        self.max_iovas = 40000
+        self.increment = (2 * 1024 * 1024)
+        self.reset()
+
+    def reset(self):
+        self.free_iovas = []
         next_available_iova = self.iova_base
 
-        self.free_iovas = []
-        for i in range(100):
+        for i in range(self.max_iovas):
             self.free_iovas.append(next_available_iova)
-            next_available_iova += (2 * 1024 * 1024)
+            next_available_iova += self.increment
+
+    def num_allocated_iovas(self):
+        return self.max_iovas - len(self.free_iovas)
 
     def get(self, size):
-        assert size < (2 * 1024 * 1024)
-        ret = self.free_iovas.pop(0)
-        return ret
+        assert size < self.increment, f'IOVA max size is {self.increment}, requested {size}'
+        return self.free_iovas.pop(0)
 
     def free(self, iova):
         self.free_iovas.append(iova)
+
+    def used(self, iova):
+        self.free_iovas.remove(iova)
 
 
 class MemoryLocation:
@@ -183,7 +193,7 @@ class Memory(metaclass=abc.ABCMeta):
         ''' Initializes a memory manager
         '''
         self.page_size = page_size
-        self.iova_mgr = IovaMgr(0xED000000)
+        self.iova_mgr = IovaMgr(0x0ED00000)
 
     @abc.abstractmethod
     def malloc(self, size, client=None):

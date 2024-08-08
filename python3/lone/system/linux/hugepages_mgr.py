@@ -132,16 +132,18 @@ class HugePagesMemoryMgr(Memory):
     def free(self, memory):
         ''' Free previously allocated pages
         '''
-        # Free all linked pages
+        # First free the links
         for m in memory.linked_mem:
             assert m.in_use is True
             m.in_use = False
             m.size = self.page_size
 
-        # Free the first page, clear linked pages
+        # If no links, just the first one
         assert memory.in_use is True
         memory.in_use = False
         memory.size = self.page_size
+
+        # Clear linked memory
         memory.linked_mem = []
 
         # Free the iova used for this memory

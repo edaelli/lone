@@ -91,6 +91,24 @@ class NVMeDeviceCommon:
             sqdnbs.SQTAIL = 0
             sqdnbs.CQHEAD = 0
 
+        # Free queue memory
+        for m in self.queue_mem:
+            self.free_and_unmap_iova(m)
+        self.queue_mem = []
+
+        # Reset queue manager since all queues are gone after a disable
+        # TODO: Technically the user can keep the admin queues intact
+        #  during a disable, so we should allow that here. For now, after a
+        #  disable, the user is expected to re-init admin queues
+        self.queue_mgr = QueueMgr()
+
+        # Reset the IOVA manager. NOTE: code that calls cc_disable but wants to keep using
+        #  allocated memory and iovas has to account for that.
+        self.mem_mgr.iova_mgr.reset()
+
+        # Any command that was outstanding is gone now. All their memory is now free as well.
+        self.outstanding_commands = {}
+
     def cc_enable(self, timeout_s=10):
         start_time = time.time()
         self.nvme_regs.CC.EN = 1
@@ -104,15 +122,17 @@ class NVMeDeviceCommon:
 
     def init_admin_queues(self, asq_entries=64, acq_entries=256):
         # Make sure the device is disabled before messing with queues
-        self.cc_disable()
+        assert self.nvme_regs.CC.EN == 0, "Don't touch admin memory with device enabled!"
 
         self.asq_mem = self.malloc_and_map_iova(NVMeDeviceCommon.sq_entry_size * asq_entries,
                                                 DMADirection.HOST_TO_DEVICE,
                                                 client='asq')
+        self.queue_mem.append(self.asq_mem)
 
         self.acq_mem = self.malloc_and_map_iova(NVMeDeviceCommon.cq_entry_size * acq_entries,
                                                 DMADirection.DEVICE_TO_HOST,
                                                 client='acq')
+        self.queue_mem.append(self.acq_mem)
 
         # Stop the device from mastering the bus while we set admin queues up
         self.pcie_regs.CMD.BME = 0
@@ -156,6 +176,7 @@ class NVMeDeviceCommon:
         cq_mem = self.malloc_and_map_iova(NVMeDeviceCommon.cq_entry_size * cq_entries,
                                           DMADirection.DEVICE_TO_HOST,
                                           client='iocq_{}'.format(cq_id))
+        self.queue_mem.append(cq_mem)
 
         # Create the CreateIOCompletionQueue command
         create_iocq_cmd = CreateIOCompletionQueue()
@@ -180,6 +201,7 @@ class NVMeDeviceCommon:
         sq_mem = self.malloc_and_map_iova(NVMeDeviceCommon.sq_entry_size * sq_entries,
                                           DMADirection.HOST_TO_DEVICE,
                                           client='iosq_{}'.format(sq_id))
+        self.queue_mem.append(sq_mem)
 
         # Create the CreateIOSubmissionQueue command
         create_iosq_cmd = CreateIOSubmissionQueue()
@@ -628,6 +650,9 @@ class NVMeDevicePhysical(NVMeDeviceCommon):
 
         # Create a memory manager object for this device
         self.mem_mgr = System.MemoryMgr(self.mps)
+
+        # Keep track of the memory we allocated for queues so they can be freed when we disable
+        self.queue_mem = []
 
     def malloc_and_map_iova(self, num_bytes, direction, client='malloc_and_map_iova'):
         # Allocate memory
