@@ -1,9 +1,9 @@
 import ctypes
-from lone.nvme.spec.structures import ADMINCommand
+from lone.nvme.spec.structures import NVMCommand
 from lone.nvme.spec.commands.status_codes import NVMeStatusCode, status_codes
 
 
-class Flush(ADMINCommand):
+class Flush(NVMCommand):
     _pack_ = 1
     _fields_ = [
         ('DW10', ctypes.c_uint32),

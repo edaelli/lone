@@ -2,6 +2,8 @@ import time
 import ctypes
 import threading
 
+from types import SimpleNamespace
+
 from lone.nvme.device import NVMeDeviceCommon
 from lone.system import Memory, MemoryLocation
 from lone.nvme.spec.registers.pcie_regs import PCIeRegistersDirect
@@ -72,6 +74,9 @@ class NVMeSimulator(NVMeDeviceCommon):
             '''
             self.page_size = page_size
             self._allocated_mem_list = []
+
+            #TODO: Clean this up
+            self.iova_mgr = SimpleNamespace(reset=lambda: True)
 
         def malloc(self, size, client=None):
             memory_obj = (ctypes.c_uint8 * size)()
@@ -164,6 +169,7 @@ class NVMeSimulator(NVMeDeviceCommon):
 
         # Create our memory manager
         self.mem_mgr = NVMeSimulator.SimMemMgr(self.mps)
+        self.queue_mem = []
 
         # Start the simulator thread
         self.sim_thread = NVSimThread(self, self.pcie_regs, self.nvme_regs)
