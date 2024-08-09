@@ -2,12 +2,17 @@
 # Dockerfile for lone
 ################################################################################
 FROM ubuntu:22.04
-MAINTAINER Edoardo Daelli <edoardo.daelli@gmail.com>
+LABEL maintainer="Edoardo Daelli <edoardo.daelli@gmail.com>"
 
 ################################################################################
-# Add a non-root user named "lone_user" to the image
+# Add a non-root user, allow caller to pick username, uid, groupname, gid
 ################################################################################
-RUN useradd -m -s /bin/bash lone_user
+ARG user=lone_user
+ARG uid=1000
+ARG group=lone_group
+ARG gid=1000
+RUN addgroup --gid ${gid} ${group}
+RUN useradd -m -s /bin/bash ${user} -u ${uid} -g ${gid}
 
 ################################################################################
 # Proxy configuration if requested
@@ -44,23 +49,30 @@ RUN apt-get -y install \
     vim
 
 ################################################################################
-# Copy lone to /opt/
-################################################################################
-ADD python3 /opt/lone
-RUN chown -R lone_user:lone_user /opt/lone
-
-################################################################################
-# Switch to the lone user, and set its path
-################################################################################
-USER lone_user
-ENV PATH=$PATH:~/.local/bin
-
-################################################################################
 # If the user set the --build-arg piptrust=1, then set pip3 to trust the default
 #    locations. This is useful if building this container behind a HTTPS proxy
 #    with a custom SSL certificate
 ################################################################################
 ARG piptrust
+RUN if [ "$piptrust" = "1" ]; then pip3 config set global.trusted-host \
+    "pypi.org files.pythonhosted.org pypi.python.org"; fi
+RUN pip3 install "pydantic>=1.10.12,<2"
+
+################################################################################
+# Copy lone to /opt/
+################################################################################
+ADD python3 /opt/lone
+RUN chown -R ${user}:${group} /opt/lone
+
+################################################################################
+# Switch to the lone user, and set its path
+################################################################################
+USER ${user}
+ENV PATH=$PATH:~/.local/bin
+
+################################################################################
+# Piptrust for the user
+################################################################################
 RUN if [ "$piptrust" = "1" ]; then pip3 config set global.trusted-host \
     "pypi.org files.pythonhosted.org pypi.python.org"; fi
 
